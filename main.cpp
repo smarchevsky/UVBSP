@@ -38,6 +38,9 @@ public:
     typedef std::function<void(ivec2, ivec2, ivec2)> MouseDragEvent;
     // float scrollDelta, ivec2 mousePos
     typedef std::function<void(float, ivec2)> MouseScrollEvent;
+    // ivec2 pos, bool down
+    typedef std::function<void(ivec2, bool)> MouseClickEvent;
+
     typedef std::function<void()> KeyDownEvent;
 
     struct DragEvent {
@@ -48,6 +51,8 @@ public:
     public:
         operator bool() { return pressed && event; }
     };
+
+    struct ClickEvent { };
 
     template <typename... Args>
     Window(Args&&... args)
@@ -67,10 +72,7 @@ public:
                 break;
             case sf::Event::Resized: {
                 m_windowSize = toUInt(event.size);
-                vec2 newFrameSize = toFloat(m_windowSize);
-                // m_aspectRatio = newFrameSize.x / newFrameSize.y;
                 applyScaleAndOffset();
-
             } break;
             case sf::Event::LostFocus:
                 break;
@@ -96,14 +98,20 @@ public:
                 case sf::Mouse::Left:
                     m_dragEventLMB.pressed = true;
                     m_dragEventLMB.startMousePos = m_mousePos;
+                    if (m_clickEventLMB)
+                        m_clickEventLMB(m_mousePos, true);
                     break;
                 case sf::Mouse::Middle:
                     m_dragEventMMB.pressed = true;
                     m_dragEventMMB.startMousePos = m_mousePos;
+                    if (m_clickEventMMB)
+                        m_clickEventMMB(m_mousePos, true);
                     break;
                 case sf::Mouse::Right:
                     m_dragEventRMB.pressed = true;
                     m_dragEventRMB.startMousePos = m_mousePos;
+                    if (m_clickEventRMB)
+                        m_clickEventRMB(m_mousePos, true);
                     break;
                 default: {
                 }
@@ -113,12 +121,18 @@ public:
                 switch (event.mouseButton.button) {
                 case sf::Mouse::Left:
                     m_dragEventLMB.pressed = false;
+                    if (m_clickEventLMB)
+                        m_clickEventLMB(m_mousePos, false);
                     break;
                 case sf::Mouse::Middle:
                     m_dragEventMMB.pressed = false;
+                    if (m_clickEventMMB)
+                        m_clickEventMMB(m_mousePos, false);
                     break;
                 case sf::Mouse::Right:
                     m_dragEventRMB.pressed = false;
+                    if (m_clickEventRMB)
+                        m_clickEventRMB(m_mousePos, false);
                     break;
                 default: {
                 }
@@ -184,11 +198,13 @@ public:
     }
 
 private:
-    std::function<void()> m_preCloseEvent;
+    std::function<void()> m_preCloseEvent {};
     ivec2 m_mousePos {};
     DragEvent m_dragEventLMB {}, m_dragEventMMB {}, m_dragEventRMB {};
+    MouseClickEvent m_clickEventLMB {}, m_clickEventMMB {}, m_clickEventRMB {};
+    MouseScrollEvent m_mouseScrollEvent {};
+
     std::unordered_map<sf::Keyboard::Key, KeyDownEvent> m_keyMap;
-    MouseScrollEvent m_mouseScrollEvent;
 
     uvec2 m_windowSize {};
     float m_scale = 1.f;
@@ -204,18 +220,22 @@ int main()
 
     sf::Texture texture;
     texture.loadFromFile("/home/staseg/Projects/blender-uv.png");
+    texture.setSmooth(1);
+    texture.generateMipmap();
 
     float scale = 1.f;
     window.setScrollEvent([&](float diff, ivec2 mousePos) {
         float scaleFactor = pow(1.1f, -diff);
         window.addScale(scaleFactor);
         // TODO: zoom to mouse cursor
-        // vec2 mPos = toFloat(mousePos);
+
+        vec2 mouseWorld = window.mapPixelToCoords(mousePos);
+        vec2 offset = (mouseWorld - window.getOffset()) * log(scaleFactor);
+        window.addOffset(-offset);
     });
 
     // sf::Shape shape;
 
-    vec2 delta;
     window.setMouseDragEvent(sf::Mouse::Middle, [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
         window.addOffset(toFloat(-currentDelta) * window.getScale());
     });
@@ -223,6 +243,12 @@ int main()
     window.setMouseDragEvent(sf::Mouse::Left, [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
 
     });
+
+    sf::Color lineColor(255, 0, 40);
+    sf::Vertex line[] = {
+        sf::Vertex(vec2(10, 10), lineColor),
+        sf::Vertex(vec2(150, 150), lineColor)
+    };
 
     sf::Sprite background(texture);
 
@@ -232,6 +258,7 @@ int main()
         window.clear();
         window.draw(background);
 
+        window.draw(line, 2, sf::Lines);
         window.display();
     }
 
