@@ -1,217 +1,10 @@
-#include <SFML/Graphics.hpp>
-#include <functional>
+#include <window.h>
+
 #include <iostream>
 #include <math.h>
-#include <unordered_map>
 
 #define LOG(x) std::cout << x << std::endl
-
-typedef sf::Vector2f vec2;
-typedef sf::Vector2u uvec2;
-typedef sf::Vector2i ivec2;
-
-const uvec2 defaultWindowSize(1024, 768);
-vec2 toFloat(const ivec2& v) { return { (float)v.x, (float)v.y }; }
-vec2 toFloat(const uvec2& v) { return { (float)v.x, (float)v.y }; }
-ivec2 toInt(const vec2& v) { return { (int)v.x, (int)v.y }; }
-ivec2 toInt(const sf::Event::MouseMoveEvent& v) { return { v.x, v.y }; }
-uvec2 toUInt(const vec2& v) { return { (unsigned)std::max(v.x, 0.f), (unsigned)std::max(v.y, 0.f) }; }
-uvec2 toUInt(const sf::Event::SizeEvent& event) { return { event.width, event.height }; }
-vec2 toFloat(const sf::Event::SizeEvent& event) { return { (float)event.width, (float)event.height }; }
-
-inline vec2 operator*(const vec2& a, const vec2& b) { return { a.x * b.x, a.y * b.y }; };
-inline vec2 operator*(const vec2& a, const uvec2& b) { return { a.x * b.x, a.y * b.y }; };
-inline vec2 operator*(const uvec2& a, const vec2& b) { return { a.x * b.x, a.y * b.y }; };
-inline vec2 operator*(const vec2& a, const ivec2& b) { return { a.x * b.x, a.y * b.y }; };
-inline vec2 operator*(const ivec2& a, const vec2& b) { return { a.x * b.x, a.y * b.y }; };
-
-inline vec2 operator/(const vec2& a, const vec2& b) { return { a.x / b.x, a.y / b.y }; };
-inline vec2 operator/(const vec2& a, const uvec2& b) { return { a.x / b.x, a.y / b.y }; };
-inline vec2 operator/(const uvec2& a, const vec2& b) { return { a.x / b.x, a.y / b.y }; };
-inline vec2 operator/(const vec2& a, const ivec2& b) { return { a.x / b.x, a.y / b.y }; };
-inline vec2 operator/(const ivec2& a, const vec2& b) { return { a.x / b.x, a.y / b.y }; };
-inline vec2 operator/(const vec2& a, float b) { return { a.x / b, a.y / b }; };
-
-class Window : public sf::RenderWindow {
-public:
-    // ivec2 startPos, ivec2 currentPos, ivec2 currentDelta
-    typedef std::function<void(ivec2, ivec2, ivec2)> MouseDragEvent;
-    // float scrollDelta, ivec2 mousePos
-    typedef std::function<void(float, ivec2)> MouseScrollEvent;
-    // ivec2 pos, bool down
-    typedef std::function<void(ivec2, bool)> MouseClickEvent;
-
-    typedef std::function<void()> KeyDownEvent;
-
-    struct DragEvent {
-        MouseDragEvent event {};
-        ivec2 startMousePos {};
-        bool pressed {};
-
-    public:
-        operator bool() { return pressed && event; }
-    };
-
-    struct ClickEvent { };
-
-    template <typename... Args>
-    Window(Args&&... args)
-        : sf::RenderWindow(std::forward<Args>(args)...)
-        , m_windowSize(getSize())
-        , m_viewOffset(toFloat(m_windowSize) / 2)
-    {
-    }
-    void processEvents()
-    {
-        sf::Event event;
-        while (pollEvent(event)) {
-            // bool escPressed = event.KeyPressed && event.key.code == sf::Keyboard::Escape;
-            switch (event.type) {
-            case sf::Event::Closed:
-                exit();
-                break;
-            case sf::Event::Resized: {
-                m_windowSize = toUInt(event.size);
-                applyScaleAndOffset();
-            } break;
-            case sf::Event::LostFocus:
-                break;
-            case sf::Event::GainedFocus:
-                break;
-            case sf::Event::TextEntered:
-                break;
-            case sf::Event::KeyPressed: {
-                auto keyEventIter = m_keyMap.find(event.key.code);
-                if (keyEventIter != m_keyMap.end()) {
-                    keyEventIter->second();
-                }
-            } break;
-            case sf::Event::KeyReleased:
-                break;
-            case sf::Event::MouseWheelScrolled:
-                if (m_mouseScrollEvent) {
-                    m_mouseScrollEvent(event.mouseWheelScroll.delta, m_mousePos);
-                }
-                break;
-            case sf::Event::MouseButtonPressed:
-                switch (event.mouseButton.button) {
-                case sf::Mouse::Left:
-                    m_dragEventLMB.pressed = true;
-                    m_dragEventLMB.startMousePos = m_mousePos;
-                    if (m_clickEventLMB)
-                        m_clickEventLMB(m_mousePos, true);
-                    break;
-                case sf::Mouse::Middle:
-                    m_dragEventMMB.pressed = true;
-                    m_dragEventMMB.startMousePos = m_mousePos;
-                    if (m_clickEventMMB)
-                        m_clickEventMMB(m_mousePos, true);
-                    break;
-                case sf::Mouse::Right:
-                    m_dragEventRMB.pressed = true;
-                    m_dragEventRMB.startMousePos = m_mousePos;
-                    if (m_clickEventRMB)
-                        m_clickEventRMB(m_mousePos, true);
-                    break;
-                default: {
-                }
-                }
-                break;
-            case sf::Event::MouseButtonReleased:
-                switch (event.mouseButton.button) {
-                case sf::Mouse::Left:
-                    m_dragEventLMB.pressed = false;
-                    if (m_clickEventLMB)
-                        m_clickEventLMB(m_mousePos, false);
-                    break;
-                case sf::Mouse::Middle:
-                    m_dragEventMMB.pressed = false;
-                    if (m_clickEventMMB)
-                        m_clickEventMMB(m_mousePos, false);
-                    break;
-                case sf::Mouse::Right:
-                    m_dragEventRMB.pressed = false;
-                    if (m_clickEventRMB)
-                        m_clickEventRMB(m_mousePos, false);
-                    break;
-                default: {
-                }
-                }
-                break;
-            case sf::Event::MouseMoved: {
-                ivec2 prevPos = m_mousePos;
-                m_mousePos = toInt(event.mouseMove);
-                if (m_dragEventLMB)
-                    m_dragEventLMB.event(m_dragEventLMB.startMousePos, m_mousePos, m_mousePos - prevPos);
-                if (m_dragEventMMB)
-                    m_dragEventMMB.event(m_dragEventMMB.startMousePos, m_mousePos, m_mousePos - prevPos);
-                if (m_dragEventRMB)
-                    m_dragEventRMB.event(m_dragEventRMB.startMousePos, m_mousePos, m_mousePos - prevPos);
-
-            } break;
-            case sf::Event::MouseEntered:
-                break;
-            case sf::Event::MouseLeft:
-                break;
-            default: {
-            }
-            }
-        }
-    }
-
-    void setScale(float scale) { m_scale = scale, applyScaleAndOffset(); }
-    void addScale(float scaleFactor) { m_scale *= scaleFactor, applyScaleAndOffset(); }
-    float getScale() const { return m_scale; }
-
-    void addOffset(vec2 offset) { m_viewOffset += offset, applyScaleAndOffset(); }
-    vec2 getOffset() const { return m_viewOffset; }
-    void applyScaleAndOffset()
-    {
-        sf::View view(m_viewOffset, toFloat(m_windowSize) * m_scale);
-        setView(view);
-    }
-
-    void setMouseDragEvent(sf::Mouse::Button button, MouseDragEvent event)
-    {
-        switch (button) {
-        case sf::Mouse::Left:
-            m_dragEventLMB.event = event;
-            break;
-        case sf::Mouse::Middle:
-            m_dragEventMMB.event = event;
-            break;
-        case sf::Mouse::Right:
-            m_dragEventRMB.event = event;
-            break;
-        default: {
-        }
-        }
-    }
-    void setScrollEvent(MouseScrollEvent event) { m_mouseScrollEvent = event; }
-    void addKeyEvent(sf::Keyboard::Key key, KeyDownEvent event) { m_keyMap.insert({ key, event }); }
-
-    void exit()
-    {
-        if (m_preCloseEvent)
-            m_preCloseEvent();
-        close();
-    }
-
-private:
-    std::function<void()> m_preCloseEvent {};
-    ivec2 m_mousePos {};
-    DragEvent m_dragEventLMB {}, m_dragEventMMB {}, m_dragEventRMB {};
-    MouseClickEvent m_clickEventLMB {}, m_clickEventMMB {}, m_clickEventRMB {};
-    MouseScrollEvent m_mouseScrollEvent {};
-
-    std::unordered_map<sf::Keyboard::Key, KeyDownEvent> m_keyMap;
-
-    uvec2 m_windowSize {};
-    float m_scale = 1.f;
-    vec2 m_viewOffset {};
-};
-
-//////////////////////////////////////////////////////////////
+const vec2 defaultWindowSize(1024, 768);
 
 int main()
 {
@@ -222,35 +15,46 @@ int main()
     texture.loadFromFile("/home/staseg/Projects/blender-uv.png");
     texture.setSmooth(1);
     texture.generateMipmap();
+    vec2 textureSize = toFloat(texture.getSize());
 
     float scale = 1.f;
     window.setScrollEvent([&](float diff, ivec2 mousePos) {
         float scaleFactor = pow(1.1f, -diff);
         window.addScale(scaleFactor);
-        // TODO: zoom to mouse cursor
-
         vec2 mouseWorld = window.mapPixelToCoords(mousePos);
         vec2 offset = (mouseWorld - window.getOffset()) * log(scaleFactor);
         window.addOffset(-offset);
     });
 
-    // sf::Shape shape;
+    window.setMouseDragEvent(sf::Mouse::Middle,
+        [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
+            window.addOffset(toFloat(-currentDelta) * window.getScale());
+        });
 
-    window.setMouseDragEvent(sf::Mouse::Middle, [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
-        window.addOffset(toFloat(-currentDelta) * window.getScale());
+    bool isMouseDragging = false;
+
+    window.setMouseClickEvent(sf::Mouse::Left, [&](ivec2 pos, bool mouseDown) {
+        if (!mouseDown) {
+            isMouseDragging = false;
+        }
     });
 
-    window.setMouseDragEvent(sf::Mouse::Left, [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
+    window.setMouseDragEvent(sf::Mouse::Left,
+        [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
+            vec2 uvCurrentDelta = window.mapPixelToCoords(currentDelta) / textureSize;
+            vec2 uvStartPos = window.mapPixelToCoords(startPos) / textureSize;
+            vec2 uvCurrentPos = window.mapPixelToCoords(currentPos) / textureSize;
+            vec2 uvCurrentDir = normalized(uvCurrentPos - uvStartPos);
 
-    });
+            if (!isMouseDragging) { // create new split
 
-    sf::Color lineColor(255, 0, 40);
-    sf::Vertex line[] = {
-        sf::Vertex(vec2(10, 10), lineColor),
-        sf::Vertex(vec2(150, 150), lineColor)
-    };
+                isMouseDragging = true;
+            } else { // rotate new split
+            }
+        });
 
     sf::Sprite background(texture);
+    const auto& rect = background.getTextureRect();
 
     while (window.isOpen()) {
 
@@ -258,7 +62,10 @@ int main()
         window.clear();
         window.draw(background);
 
-        window.draw(line, 2, sf::Lines);
+        // for (auto& line : lines) {
+        //     line.draw(window);
+        // }
+
         window.display();
     }
 
