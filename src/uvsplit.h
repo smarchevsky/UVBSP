@@ -4,20 +4,22 @@
 #include <SFML/Graphics/Shader.hpp>
 #include <bitset>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <vec2.h>
 #include <vector>
 
+constexpr ushort nodeIndexThreshold = 1 << 15;
 /////////////////////////////////////////////
 /// Node indices are represented as unsigned short 16 bit integers
 /// 0 ... 32767 are color indices
 /// 32768 ... 65536 are node indices
 /// BSPNode constructor set color indices by default
 ///
-constexpr uint16_t nodeIndexThreshold = 1 << 15;
 
 struct BSPNode {
-    BSPNode(vec2 p, vec2 d, uint16_t l, uint16_t r)
+
+    BSPNode(vec2 p, vec2 d, ushort l, ushort r)
         : pos(p)
         , dir(d)
         , left(l)
@@ -26,7 +28,7 @@ struct BSPNode {
     }
 
     vec2 pos, dir;
-    uint16_t left, right;
+    ushort left, right;
 };
 
 struct UVSplitAction {
@@ -72,10 +74,10 @@ public:
     {
         ushort left {}, right {};
         if (isNodeLink(m_nodes[nodeIndex].left)) {
-            left = getMaxDepth(m_nodes[nodeIndex].left);
+            left = getMaxDepth(m_nodes[nodeIndex].left - nodeIndexThreshold);
         }
         if (isNodeLink(m_nodes[nodeIndex].right)) {
-            right = getMaxDepth(m_nodes[nodeIndex].right);
+            right = getMaxDepth(m_nodes[nodeIndex].right - nodeIndexThreshold);
         }
         return std::max(left, right) + 1;
     }
@@ -99,8 +101,10 @@ public:
 
                 } else {
                     indexOfProperSide = m_nodes.size() + nodeIndexThreshold;
+
                     m_nodes.emplace_back(BSPNode(split.pos, split.dir, split.c0, split.c1));
                     m_currentNode = &m_nodes.back();
+
                     break;
                 }
             }
