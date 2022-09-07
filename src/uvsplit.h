@@ -10,19 +10,21 @@
 
 /////////////////////////////////////////////
 /// Node indices are represented as unsigned short 16 bit integers
-/// 0 ... 32767 are node indices
-/// 32768 ... 65536 are out color indices
+/// 0 ... 32767 are color indices
+/// 32768 ... 65536 are node indices
 /// BSPNode constructor set color indices by default
-constexpr uint16_t colorIndexThreshold = 1 << 15;
+///
+constexpr uint16_t nodeIndexThreshold = 1 << 15;
 
 struct BSPNode {
     BSPNode(vec2 p, vec2 d, uint16_t l, uint16_t r)
         : pos(p)
         , dir(d)
-        , left(l + colorIndexThreshold)
-        , right(r + colorIndexThreshold)
+        , left(l)
+        , right(r)
     {
     }
+
     vec2 pos, dir;
     uint16_t left, right;
 };
@@ -41,7 +43,7 @@ struct UVSplitAction {
 
 class UVSplit {
 public:
-    static bool isNodeLink(ushort index) { return index < colorIndexThreshold; }
+    static bool isNodeLink(ushort index) { return index >= nodeIndexThreshold; }
     UVSplit(const vec2& imageSize)
         : m_imageSize(imageSize)
     {
@@ -49,10 +51,11 @@ public:
     }
     static std::string printIndex(ushort index)
     {
-        return (index < colorIndexThreshold)
-            ? "next " + std::to_string(index)
-            : "color " + std::to_string(index - colorIndexThreshold);
+        return (index < nodeIndexThreshold)
+            ? "color " + std::to_string(index)
+            : "next " + std::to_string(index - nodeIndexThreshold);
     }
+
     std::string stringNodes()
     {
         std::string result;
@@ -90,15 +93,14 @@ public:
             for (int iteration = 0; iteration < 64; ++iteration) {
                 bool isLeftPixel = dot(m_nodes[currentIndex].pos - split.pos, m_nodes[currentIndex].dir) < 0.0;
                 uint16_t& indexOfProperSide = isLeftPixel ? m_nodes[currentIndex].left : m_nodes[currentIndex].right;
+
                 if (isNodeLink(indexOfProperSide)) {
-                    currentIndex = indexOfProperSide;
+                    currentIndex = indexOfProperSide - nodeIndexThreshold;
 
                 } else {
-                    indexOfProperSide = m_nodes.size();
-
+                    indexOfProperSide = m_nodes.size() + nodeIndexThreshold;
                     m_nodes.emplace_back(BSPNode(split.pos, split.dir, split.c0, split.c1));
                     m_currentNode = &m_nodes.back();
-
                     break;
                 }
             }

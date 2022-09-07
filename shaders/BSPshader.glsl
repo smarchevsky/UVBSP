@@ -8,6 +8,8 @@
 #define MAX_DEPTH 64
 
 uniform sampler2D texture;
+
+// node is a struct of vec2, float and 2 shorts
 uniform vec4 nodes[512];
 
 const float inf = 1. / 0.;
@@ -17,14 +19,15 @@ vec3 rainbow(float val){
   return result * result;
 }
 
-struct Node {
-  vec2 pos;
-  float tangent;
-  int left, right;
-};
+float sigmoid(float val){
+  return val / (abs(val) + 1.0);
+}
 
-const uint colorIndexThreshold = uint(32768);
-const uint ushortMask = uint(0x0000ffff); // 65535
+const uint nodeIndexThreshold = uint(1 << 15);
+// greater equal indices are nodes
+// less than nodeIndexThreshold are colors
+// Node indices are represented as pair of unsigned short 16 bit integers
+// packed in float
 
 uint traverseTree(vec2 uv){
   uint currentIndex = uint(0);
@@ -32,22 +35,22 @@ uint traverseTree(vec2 uv){
   for(int iteration = 0; iteration < MAX_DEPTH; ++iteration) {
     vec2 pos = nodes[currentIndex].xy;
     vec2 tangent = vec2(nodes[currentIndex].z, 1.0);
+
     uint leftRight = floatBitsToUint(nodes[currentIndex].w);   
     bool isLeftPixel = dot(pos - uv, tangent) < 0.0;
-    uint indexOfProperSide = isLeftPixel ? leftRight >> 16 : leftRight & ushortMask;
-    if(indexOfProperSide < colorIndexThreshold) {
-      currentIndex = indexOfProperSide;
-    }
-    else {
-      return indexOfProperSide - colorIndexThreshold;
+
+    uint indexOfProperSide = isLeftPixel ? leftRight >> 16 : (leftRight & uint(0x0000ffff));
+    
+    if(indexOfProperSide >= nodeIndexThreshold) {
+      currentIndex = indexOfProperSide - nodeIndexThreshold;
+    } else {
+      return indexOfProperSide;
     }
   }
   return uint(0);
 }
 
-float sigmoid(float val){
-  return val / (abs(val) + 1.0);
-}
+
 
 void main() {
   vec2 uv = gl_TexCoord[0].xy;

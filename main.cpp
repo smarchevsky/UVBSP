@@ -102,7 +102,7 @@ int main()
             isMouseDragging = false;
             const BSPNode* lastNode = uvSplit.getLastNode();
             if (lastNode) {
-                UVSplitAction split(lastNode->pos, lastNode->dir, lastNode->left - colorIndexThreshold, lastNode->right - colorIndexThreshold);
+                UVSplitAction split(lastNode->pos, lastNode->dir, lastNode->left, lastNode->right);
                 splitActions.add(split);
 
                 updateWindowTitle();

@@ -7,7 +7,7 @@ Now you can draw awesome images splitting UV, and screenshot them, because no im
 
 ToDo:
 - Shader generator (glsl/hlsl) with static binary tree.
-- Ctrl-Z (!).
+- Ctrl-Z (!) - done!
 - Save/Load.
 - Figure out, why window is so laggy on drag.
 - Windows support.
