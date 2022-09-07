@@ -46,7 +46,6 @@ public:
         : m_imageSize(imageSize)
     {
         reset();
-        printNodes();
     }
     static std::string printIndex(ushort index)
     {
@@ -54,17 +53,19 @@ public:
             ? "next " + std::to_string(index)
             : "color " + std::to_string(index - colorIndexThreshold);
     }
-    void printNodes()
+    std::string stringNodes()
     {
+        std::string result;
         for (int i = 0; i < m_nodes.size(); ++i) {
             const auto& n = m_nodes[i];
-
-            std::printf("Node %d: %s, %s |  ", i, printIndex(n.left).c_str(), printIndex(n.right).c_str());
+            result += "Node: " + std::to_string(i) + ": "
+                + printIndex(n.left) + ", " + printIndex(n.right) + " | ";
         }
-        std::cout << std::endl;
+        result += "\n";
+        return result;
     }
 
-    ushort getMaxDepth(ushort nodeIndex)
+    ushort getMaxDepth(ushort nodeIndex = 0)
     {
         ushort left {}, right {};
         if (isNodeLink(m_nodes[nodeIndex].left)) {
@@ -75,12 +76,7 @@ public:
         }
         return std::max(left, right) + 1;
     }
-
-    void printDepth()
-    {
-        int depth = getMaxDepth(0);
-        std::cout << "Tree depth: " << depth << std::endl;
-    }
+    size_t getNumNodes() const { return m_nodes.size(); }
 
     void addSplit(UVSplitAction split)
     {
@@ -113,7 +109,6 @@ public:
              m_currentNode->left = depth * 4 + colorIndexThreshold + 1;
          if(!isNodeLink(m_currentNode->right))
              m_currentNode->right = depth * 4 + colorIndexThreshold;*/
-
     }
     void adjustSplit(const vec2& uvDir)
     {

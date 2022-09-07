@@ -3,7 +3,6 @@
 
 #include <assert.h>
 
-#include <chrono>
 #include <iostream>
 #include <math.h>
 
@@ -83,10 +82,19 @@ int main()
 
     UVSplit uvSplit(textureSize);
     UVSplitActionHistory splitActions(uvSplit);
+    std::string windowTitle;
+    ushort colorIndex = 0;
 
     sf::Shader textureShader;
     textureShader.loadFromFile(projectDir + "/shaders/BSPshader.glsl", sf::Shader::Type::Fragment);
     textureShader.setUniform("texture", texture);
+
+    auto updateWindowTitle = [&]() {
+        windowTitle = "Node count: " + std::to_string(uvSplit.getNumNodes())
+            + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth());
+        window.setTitle(windowTitle);
+        LOG(uvSplit.stringNodes());
+    };
 
     bool isMouseDragging = false;
     window.setMouseClickEvent(sf::Mouse::Left, [&](ivec2 pos, bool mouseDown) {
@@ -97,20 +105,20 @@ int main()
                 UVSplitAction split(lastNode->pos, lastNode->dir, lastNode->left - colorIndexThreshold, lastNode->right - colorIndexThreshold);
                 splitActions.add(split);
 
-                uvSplit.printDepth();
-                uvSplit.printNodes();
+                updateWindowTitle();
             }
         }
     });
 
     window.addKeyEvent(sf::Keyboard::Z, ModifierKey::Control, [&]() { // undo
-        splitActions.undo();
+        if (splitActions.undo())
+            colorIndex -= 2;
         uvSplit.updateUniforms(textureShader);
-        uvSplit.printDepth();
-        uvSplit.printNodes();
+
+        updateWindowTitle();
+
     });
 
-    ushort colorIndex = 0;
     window.setMouseDragEvent(sf::Mouse::Left,
         [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
             vec2 uvCurrentDelta = window.mapPixelToCoords(currentDelta) / textureSize;
@@ -136,9 +144,6 @@ int main()
     sf::Sprite background(texture);
     auto rect = background.getTextureRect();
 
-    int frameCounter = 0;
-    double tDiffAccum = 0.;
-    std::string windowTitle;
     windowTitle.reserve(256);
 
     uvSplit.updateUniforms(textureShader);
@@ -150,16 +155,8 @@ int main()
         window.clear(sf::Color(50, 50, 50));
 
         sf::Shader::bind(&textureShader);
-        auto t0 = std::chrono::system_clock::now();
-        window.draw(background);
-        std::chrono::duration<double> tDiff = std::chrono::system_clock::now() - t0;
-        tDiffAccum += tDiff.count();
 
-        if (frameCounter++ % 30 == 0) {
-            windowTitle = std::to_string(tDiffAccum / 100 * 1000000) + " mks";
-            tDiffAccum = 0;
-            window.setTitle(windowTitle);
-        }
+        window.draw(background);
 
         sf::Shader::bind(nullptr);
 
