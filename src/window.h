@@ -5,28 +5,66 @@
 #include <functional>
 #include <unordered_map>
 #include <vec2.h>
+enum class ModifierKey : uint8_t { None = 0,
+    Alt = 1,
+    Control = 1 << 1,
+    Shift = 1 << 2,
+    System = 1 << 3 };
 
+struct KeyWithModifier {
+    KeyWithModifier(sf::Keyboard::Key key, ModifierKey mod)
+        : key(key)
+        , mod(mod)
+    {
+    }
+    KeyWithModifier(sf::Keyboard::Key key,
+        bool alt = false, bool ctrl = false, bool shift = false, bool system = false)
+        : key(key)
+        , mod(ModifierKey(alt | ctrl << 1 | shift << 2 | system << 3))
+    {
+    }
+    bool operator==(const KeyWithModifier& rhs) const { return key == rhs.key && mod == rhs.mod; }
+
+    sf::Keyboard::Key key = sf::Keyboard::Key::Unknown;
+    ModifierKey mod = ModifierKey::None;
+};
+
+namespace std {
+template <>
+struct hash<KeyWithModifier> {
+    std::size_t operator()(const KeyWithModifier& k) const
+    {
+        uint64_t keyAction64 = (uint64_t)k.key | (uint64_t)((uint64_t)k.mod << 32);
+        return std::hash<uint64_t>()(static_cast<uint64_t>(keyAction64));
+    }
+};
+}
+
+// ivec2 startPos, ivec2 currentPos, ivec2 currentDelta
+typedef std::function<void(ivec2, ivec2, ivec2)>
+    MouseDragEvent;
+// float scrollDelta, ivec2 mousePos
+typedef std::function<void(float, ivec2)>
+    MouseScrollEvent;
+// ivec2 pos, bool mouseDown
+typedef std::function<void(ivec2, bool)>
+    MouseClickEvent;
+
+typedef std::function<void()>
+    KeyDownEvent;
+
+struct DragEvent {
+    MouseDragEvent event {};
+    ivec2 startMousePos {};
+    bool pressed {};
+
+public:
+    operator bool() { return pressed && event; }
+};
 // kinda window wrapper, you can wrap SDL window the same way
+
 class Window : public sf::RenderWindow {
 public:
-    // ivec2 startPos, ivec2 currentPos, ivec2 currentDelta
-    typedef std::function<void(ivec2, ivec2, ivec2)> MouseDragEvent;
-    // float scrollDelta, ivec2 mousePos
-    typedef std::function<void(float, ivec2)> MouseScrollEvent;
-    // ivec2 pos, bool mouseDown
-    typedef std::function<void(ivec2, bool)> MouseClickEvent;
-
-    typedef std::function<void()> KeyDownEvent;
-
-    struct DragEvent {
-        MouseDragEvent event {};
-        ivec2 startMousePos {};
-        bool pressed {};
-
-    public:
-        operator bool() { return pressed && event; }
-    };
-
     template <typename... Args>
     Window(Args&&... args)
         : sf::RenderWindow(std::forward<Args>(args)...)
@@ -54,7 +92,10 @@ public:
             case sf::Event::TextEntered:
                 break;
             case sf::Event::KeyPressed: {
-                auto keyEventIter = m_keyMap.find(event.key.code);
+                KeyWithModifier currentKey(event.key.code,
+                    event.key.alt, event.key.control, event.key.shift, event.key.system);
+
+                auto keyEventIter = m_keyMap.find(currentKey);
                 if (keyEventIter != m_keyMap.end()) {
                     keyEventIter->second();
                 }
@@ -180,7 +221,10 @@ public:
     }
 
     void setScrollEvent(MouseScrollEvent event) { m_mouseScrollEvent = event; }
-    void addKeyEvent(sf::Keyboard::Key key, KeyDownEvent event) { m_keyMap.insert({ key, event }); }
+    void addKeyEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyDownEvent event)
+    {
+        m_keyMap.insert({ KeyWithModifier(key, modifier), event });
+    }
 
     void exit()
     {
@@ -194,7 +238,7 @@ private:
     DragEvent m_dragEventLMB {}, m_dragEventMMB {}, m_dragEventRMB {};
     MouseClickEvent m_clickEventLMB {}, m_clickEventMMB {}, m_clickEventRMB {};
     MouseScrollEvent m_mouseScrollEvent {};
-    std::unordered_map<sf::Keyboard::Key, KeyDownEvent> m_keyMap;
+    std::unordered_map<KeyWithModifier, KeyDownEvent> m_keyMap;
 
     ivec2 m_mousePos {};
     uvec2 m_windowSize {};

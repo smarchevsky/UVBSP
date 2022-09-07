@@ -27,13 +27,25 @@ struct BSPNode {
     uint16_t left, right;
 };
 
-class UVSplit {
+struct UVSplitAction {
+    UVSplitAction(vec2 pos, vec2 dir, ushort c0, ushort c1)
+        : pos(pos)
+        , dir(dir)
+        , c0(c0)
+        , c1(c1)
+    {
+    }
+    vec2 pos, dir;
+    ushort c0, c1;
+};
 
+class UVSplit {
 public:
+    static bool isNodeLink(ushort index) { return index < colorIndexThreshold; }
     UVSplit(const vec2& imageSize)
         : m_imageSize(imageSize)
     {
-        m_nodes.push_back({ vec2(0.5f, 0.5f), vec2(1, 1), 0, 0 });
+        reset();
         printNodes();
     }
     static std::string printIndex(ushort index)
@@ -51,8 +63,6 @@ public:
         }
         std::cout << std::endl;
     }
-
-    static bool isNodeLink(ushort index) { return index < colorIndexThreshold; }
 
     ushort getMaxDepth(ushort nodeIndex)
     {
@@ -72,18 +82,17 @@ public:
         std::cout << "Tree depth: " << depth << std::endl;
     }
 
-    void addSplit(const vec2& uvPos, const vec2& uvDir, uint16_t indexLeft = 0, uint16_t indexRight = 0)
+    void addSplit(UVSplitAction split)
     {
-
         if (!m_initialSet) {
-            m_nodes[0] = BSPNode(uvPos, uvDir, indexLeft, indexRight);
+            m_nodes[0] = BSPNode(split.pos, split.dir, split.c0, split.c1);
             m_currentNode = &m_nodes[0];
             m_initialSet = true;
 
         } else {
             int currentIndex = 0;
             for (int iteration = 0; iteration < 64; ++iteration) {
-                bool isLeftPixel = dot(m_nodes[currentIndex].pos - uvPos, m_nodes[currentIndex].dir) < 0.0;
+                bool isLeftPixel = dot(m_nodes[currentIndex].pos - split.pos, m_nodes[currentIndex].dir) < 0.0;
                 uint16_t& indexOfProperSide = isLeftPixel ? m_nodes[currentIndex].left : m_nodes[currentIndex].right;
                 if (isNodeLink(indexOfProperSide)) {
                     currentIndex = indexOfProperSide;
@@ -91,21 +100,20 @@ public:
                 } else {
                     indexOfProperSide = m_nodes.size();
 
-                    m_nodes.emplace_back(BSPNode(uvPos, uvDir, indexLeft, indexRight));
+                    m_nodes.emplace_back(BSPNode(split.pos, split.dir, split.c0, split.c1));
                     m_currentNode = &m_nodes.back();
 
                     break;
                 }
             }
         }
-        // auto depth = getMaxDepth(0);
-        // depth -= 1;
-        // if(!isNodeLink(m_currentNode->left))
-        //     m_currentNode->left = depth * 4 + colorIndexThreshold + 1;
-        // if(!isNodeLink(m_currentNode->right))
-        //     m_currentNode->right = depth * 4 + colorIndexThreshold;
-        printDepth();
-        printNodes();
+        /* auto depth = getMaxDepth(0);
+         depth -= 1;
+         if(!isNodeLink(m_currentNode->left))
+             m_currentNode->left = depth * 4 + colorIndexThreshold + 1;
+         if(!isNodeLink(m_currentNode->right))
+             m_currentNode->right = depth * 4 + colorIndexThreshold;*/
+
     }
     void adjustSplit(const vec2& uvDir)
     {
@@ -123,33 +131,44 @@ public:
             std::swap(node.left, node.right);
 
         uint leftRight = (node.left << 16) | node.right & 0xffff;
-        //        uint right = leftRight & 0x0000ffff;
-        //        uint left = leftRight >> 16;
 
-        //        std::printf("leftRight %u, left  %u, right %u\n", leftRight, left, right);
-        //        std::cout << std::bitset<32>(leftRight) << std::endl;
-        //        std::cout << std::endl;
+        /*uint right = leftRight & 0x0000ffff;
+        uint left = leftRight >> 16;
+        std::printf("leftRight %u, left  %u, right %u\n", leftRight, left, right);
+        std::cout << std::bitset<32>(leftRight) << std::endl;
+        std::cout << std::endl;*/
 
         return sf::Glsl::Vec4(node.pos.x, node.pos.y, tangent, reinterpret_cast<float&>(leftRight));
     }
 
     void updateUniforms(sf::Shader& shader)
     {
-        m_packedStruct.resize(m_nodes.size());
+        m_packedStructs.resize(m_nodes.size());
 
         for (int i = 0; i < m_nodes.size(); ++i)
-            m_packedStruct[i] = packNodeToVec4(m_nodes[i]);
+            m_packedStructs[i] = packNodeToVec4(m_nodes[i]);
 
-        shader.setUniformArray("nodes", m_packedStruct.data(), m_packedStruct.size());
+        shader.setUniformArray("nodes", m_packedStructs.data(), m_packedStructs.size());
     }
+
+    void reset()
+    {
+        m_nodes.clear();
+        m_nodes.push_back({ vec2(0.5f, 0.5f), vec2(1, 1), 0, 0 });
+        m_packedStructs.clear();
+        m_currentNode = nullptr;
+        m_initialSet = false;
+    }
+
+    const BSPNode* getLastNode() const { return m_currentNode; }
 
 private:
     const vec2 m_imageSize;
     std::vector<BSPNode> m_nodes;
+    std::vector<sf::Glsl::Vec4> m_packedStructs;
     BSPNode* m_currentNode {};
 
     bool m_initialSet {};
-    std::vector<sf::Glsl::Vec4> m_packedStruct;
 };
 
 #endif // UVSPLIT_H

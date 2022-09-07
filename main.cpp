@@ -6,73 +6,58 @@
 #include <chrono>
 #include <iostream>
 #include <math.h>
-#include <optional>
 
 #define LOG(x) std::cout << x << std::endl
 const vec2 defaultWindowSize(1024, 768);
 const std::string projectDir(PROJECT_DIR);
 
-/*
-struct Line {
-    Line(vec2 p0, vec2 p1, sf::Color color = sf::Color(255, 0, 0))
-    {
-        m_line[0] = { p0, color };
-        m_line[1] = { p1, color };
-    }
-    void setPositions(vec2 p0, vec2 p1)
-    {
-        m_line[0].position = p0;
-        m_line[1].position = p1;
-    }
-    void draw(sf::RenderWindow& window) { window.draw(m_line, 2, sf::Lines); }
-    sf::Vertex m_line[2];
-};
-
-std::optional<vec2> getLineIntersection(vec2 p0, vec2 direction, vec2 segment0, vec2 segment1)
-{
-    std::optional<vec2> result;
-    vec2 P = segment0;
-    vec2 R = segment1 - segment0;
-    vec2 Q = p0;
-    vec2 S = direction;
-
-    vec2 N = vec2(S.y, -S.x);
-    float t = dot(Q - P, N) / dot(R, N);
-
-    if (t >= 0.0 && t <= 1.0)
-        result = P + R * t;
-
-    return result;
-}
-
-bool convexLineIntersection(const sf::ConvexShape& shape, vec2 linePos, vec2 lineDir)
-{
-    std::vector<vec2> shapePoints0, shapePoints1;
-
-    bool isSecondShape {}, hasSplit {};
-    for (int i = 0; i < shape.getPointCount() - 1; ++i) {
-        const vec2& p0 = shape.getPoint(i);
-        const vec2& p1 = shape.getPoint(i + 1);
-
-        shapePoints0.push_back(p0);
-        auto intersection = getLineIntersection(linePos, lineDir, p0, p1);
-        if (intersection) {
-            hasSplit = true;
-            isSecondShape = !isSecondShape;
-            // do something, but why?
-        }
-    }
-    return hasSplit;
-}
-*/
 //////////////////////////////////////////////////
+
+class UVSplitActionHistory {
+public:
+    UVSplitActionHistory(UVSplit& uvSplit)
+        : m_uvSplit(uvSplit)
+    {
+    }
+
+    void add(const UVSplitAction& action)
+    {
+        if (m_drawHistory.size() > m_currentIndex)
+            m_drawHistory[m_currentIndex] = action;
+        else
+            m_drawHistory.push_back(action);
+
+        // assert(false && "m_currentIndex is beyond drawHistory size");
+
+        m_currentIndex++;
+    }
+
+    bool undo()
+    {
+        if (m_currentIndex > 0) {
+            m_uvSplit.reset();
+            for (int i = 0; i < m_currentIndex - 1; ++i) {
+                const auto& action = m_drawHistory[i];
+                m_uvSplit.addSplit(action);
+            }
+            m_currentIndex--;
+            return true;
+        }
+        return false;
+    }
+
+private:
+    std::vector<UVSplitAction> m_drawHistory;
+    int m_currentIndex {};
+    UVSplit& m_uvSplit;
+};
 
 int main()
 {
 
     Window window(sf::VideoMode(defaultWindowSize.x, defaultWindowSize.y), "UVBSP");
 
-    window.addKeyEvent(sf::Keyboard::Escape, [&window]() { window.exit(); });
+    window.addKeyEvent(sf::Keyboard::Escape, ModifierKey::None, [&window]() { window.exit(); });
     window.setVerticalSyncEnabled(true);
 
     sf::Texture texture;
@@ -97,19 +82,35 @@ int main()
         });
 
     UVSplit uvSplit(textureSize);
-
-    bool isMouseDragging = false;
-    window.setMouseClickEvent(sf::Mouse::Left, [&](ivec2 pos, bool mouseDown) {
-        if (!mouseDown) {
-            isMouseDragging = false;
-        }
-    });
+    UVSplitActionHistory splitActions(uvSplit);
 
     sf::Shader textureShader;
     textureShader.loadFromFile(projectDir + "/shaders/BSPshader.glsl", sf::Shader::Type::Fragment);
     textureShader.setUniform("texture", texture);
 
-    int colorIndex = 0;
+    bool isMouseDragging = false;
+    window.setMouseClickEvent(sf::Mouse::Left, [&](ivec2 pos, bool mouseDown) {
+        if (!mouseDown) {
+            isMouseDragging = false;
+            const BSPNode* lastNode = uvSplit.getLastNode();
+            if (lastNode) {
+                UVSplitAction split(lastNode->pos, lastNode->dir, lastNode->left - colorIndexThreshold, lastNode->right - colorIndexThreshold);
+                splitActions.add(split);
+
+                uvSplit.printDepth();
+                uvSplit.printNodes();
+            }
+        }
+    });
+
+    window.addKeyEvent(sf::Keyboard::Z, ModifierKey::Control, [&]() { // undo
+        splitActions.undo();
+        uvSplit.updateUniforms(textureShader);
+        uvSplit.printDepth();
+        uvSplit.printNodes();
+    });
+
+    ushort colorIndex = 0;
     window.setMouseDragEvent(sf::Mouse::Left,
         [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
             vec2 uvCurrentDelta = window.mapPixelToCoords(currentDelta) / textureSize;
@@ -120,7 +121,8 @@ int main()
 
             if (!isMouseDragging) { // create new split
 
-                uvSplit.addSplit(uvStartPos, uvCurrentPerp, colorIndex, colorIndex + 1);
+                UVSplitAction split = { uvStartPos, uvCurrentPerp, colorIndex, ushort(colorIndex + 1) };
+                uvSplit.addSplit(split);
                 uvSplit.updateUniforms(textureShader);
 
                 colorIndex += 2;
