@@ -27,8 +27,6 @@ public:
         operator bool() { return pressed && event; }
     };
 
-    struct ClickEvent { };
-
     template <typename... Args>
     Window(Args&&... args)
         : sf::RenderWindow(std::forward<Args>(args)...)
@@ -139,6 +137,7 @@ public:
     float getScale() const { return m_scale; }
 
     void addOffset(vec2 offset) { m_viewOffset += offset, applyScaleAndOffset(); }
+    void setOffset(vec2 offset) { m_viewOffset = offset; }
     vec2 getOffset() const { return m_viewOffset; }
     void applyScaleAndOffset()
     {
