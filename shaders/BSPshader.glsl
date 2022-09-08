@@ -4,11 +4,9 @@
 
 uniform sampler2D texture;
 
-#define PI 3.1415926535
-#define PI_2 1.570796327
-#define PI_3 1.047197551
+const float pi_div3 = 1.047197551;
 vec3 rainbow(float val){
-  vec3 result = vec3(sin(val), sin(val + PI_3), sin(val + PI_3 * 2.0));
+  vec3 result = vec3(sin(val), sin(val + pi_div3), sin(val + pi_div3 * 2.0));
   return result * result;
 }
 
