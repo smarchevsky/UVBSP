@@ -52,7 +52,7 @@ private:
     UVSplit& m_uvSplit;
 };
 
-int main()
+int main(int argc, char** argv)
 {
 
     Window window(sf::VideoMode(defaultWindowSize.x, defaultWindowSize.y), "UVBSP");
@@ -61,7 +61,22 @@ int main()
     window.setVerticalSyncEnabled(true);
 
     sf::Texture texture;
-    texture.loadFromFile("/home/staseg/Projects/blender-uv.png");
+
+    bool validTexture {};
+    if (argc <= 1) {
+        window.setTitle("No input file!");
+    } else {
+        validTexture = texture.loadFromFile(argv[1]);
+        if (!validTexture)
+            window.setTitle(std::string("Unable to find file: ") + argv[1]);
+    }
+
+    if (!validTexture) {
+        sf::Image img;
+        img.create(1024, 1024, sf::Color(33, 33, 33));
+        texture.loadFromImage(img);
+    }
+
     texture.setSmooth(1);
     texture.generateMipmap();
     vec2 textureSize = toFloat(texture.getSize());
@@ -83,7 +98,7 @@ int main()
 
     UVSplit uvSplit(textureSize);
     UVSplitActionHistory splitActions(uvSplit);
-    std::string windowTitle;
+
     ushort colorIndex = 0;
 
     sf::Shader textureShader;
@@ -91,9 +106,8 @@ int main()
     textureShader.setUniform("texture", texture);
 
     auto updateWindowTitle = [&]() {
-        windowTitle = "Node count: " + std::to_string(uvSplit.getNumNodes())
-            + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth());
-        window.setTitle(windowTitle);
+        window.setTitle("Node count: " + std::to_string(uvSplit.getNumNodes())
+            + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth()));
         LOG(uvSplit.stringNodes());
     };
 
@@ -175,22 +189,14 @@ int main()
         });
 
     sf::Sprite background(texture);
-    auto rect = background.getTextureRect();
-
-    windowTitle.reserve(256);
-
     uvSplit.updateUniforms(textureShader);
-
-    srand(time(0));
     while (window.isOpen()) {
 
         window.processEvents();
         window.clear(sf::Color(50, 50, 50));
 
         sf::Shader::bind(&textureShader);
-
         window.draw(background);
-
         sf::Shader::bind(nullptr);
 
         window.display();
