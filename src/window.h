@@ -10,6 +10,7 @@ enum class ModifierKey : uint8_t { None = 0,
     Control = 1 << 1,
     Shift = 1 << 2,
     System = 1 << 3 };
+ModifierKey operator|(ModifierKey a, ModifierKey b) { return ModifierKey((int)a | (int)b); }
 
 struct KeyWithModifier {
     KeyWithModifier(sf::Keyboard::Key key, ModifierKey mod)

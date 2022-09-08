@@ -6,6 +6,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vec2.h>
 #include <vector>
 
@@ -15,7 +16,29 @@ constexpr ushort nodeIndexThreshold = 1 << 15;
 /// 0 ... 32767 are color indices
 /// 32768 ... 65536 are node indices
 /// BSPNode constructor set color indices by default
-///
+
+// static const std::string lang_vec4_str[2] = { "vec4", "float4" };
+// static const std::string lang_asFloat[2] = { "intBitsToFloat", "asfloat" };
+
+static constexpr const char* traverseFunction
+    = "const uint nodeIndexThreshold = uint(1 << 15);\n\n"
+      "uint traverseTree(VEC2 uv){\n"
+      "  uint currentIndex = uint(0);\n"
+      "  for(int iteration = 0; iteration < MAX_DEPTH; ++iteration) {\n"
+      "    VEC2 pos = nodes[currentIndex].xy;\n"
+      "    VEC2 tangent = VEC2(nodes[currentIndex].z, 1.0);\n"
+      "    uint leftRight = REINTERPRET_TO_UINT(nodes[currentIndex].w); // reinterpret   \n"
+      "    bool isLeftPixel = dot(pos - uv, tangent) < 0.0;\n"
+      "    uint indexOfProperSide = isLeftPixel ? leftRight >> 16 : (leftRight & uint(0x0000ffff));\n"
+      "    \n"
+      "    if(indexOfProperSide >= nodeIndexThreshold) {\n"
+      "      currentIndex = indexOfProperSide - nodeIndexThreshold;\n"
+      "    } else {\n"
+      "      return indexOfProperSide;\n"
+      "    }\n"
+      "  }\n"
+      "  return uint(0);\n"
+      "}\n";
 
 struct BSPNode {
 
@@ -44,33 +67,23 @@ struct UVSplitAction {
 };
 
 class UVSplit {
+    const vec2 m_imageSize;
+    std::vector<BSPNode> m_nodes;
+    std::vector<sf::Glsl::Vec4> m_packedStructs;
+    BSPNode* m_currentNode {};
+
+    bool m_initialSet {};
+
 public:
     static bool isNodeLink(ushort index) { return index >= nodeIndexThreshold; }
+
     UVSplit(const vec2& imageSize)
         : m_imageSize(imageSize)
     {
         reset();
     }
-    static std::string printIndex(ushort index)
-    {
-        return (index < nodeIndexThreshold)
-            ? "color " + std::to_string(index)
-            : "next " + std::to_string(index - nodeIndexThreshold);
-    }
 
-    std::string stringNodes()
-    {
-        std::string result;
-        for (int i = 0; i < m_nodes.size(); ++i) {
-            const auto& n = m_nodes[i];
-            result += "Node: " + std::to_string(i) + ": "
-                + printIndex(n.left) + ", " + printIndex(n.right) + " | ";
-        }
-        result += "\n";
-        return result;
-    }
-
-    ushort getMaxDepth(ushort nodeIndex = 0)
+    ushort getMaxDepth(ushort nodeIndex = 0) const
     {
         ushort left {}, right {};
         if (isNodeLink(m_nodes[nodeIndex].left)) {
@@ -109,12 +122,6 @@ public:
                 }
             }
         }
-        /* auto depth = getMaxDepth(0);
-         depth -= 1;
-         if(!isNodeLink(m_currentNode->left))
-             m_currentNode->left = depth * 4 + colorIndexThreshold + 1;
-         if(!isNodeLink(m_currentNode->right))
-             m_currentNode->right = depth * 4 + colorIndexThreshold;*/
     }
     void adjustSplit(const vec2& uvDir)
     {
@@ -123,7 +130,7 @@ public:
         }
     }
 
-    static sf::Glsl::Vec4 packNodeToVec4(BSPNode node)
+    static sf::Glsl::Vec4 packNodeToVec4(BSPNode node, std::string* nodeAsShaderText = nullptr)
     {
         float tangent = node.dir.x / node.dir.y;
         float range = 99999.f;
@@ -133,11 +140,18 @@ public:
 
         uint leftRight = (node.left << 16) | node.right & 0xffff;
 
-        /*uint right = leftRight & 0x0000ffff;
-        uint left = leftRight >> 16;
-        std::printf("leftRight %u, left  %u, right %u\n", leftRight, left, right);
-        std::cout << std::bitset<32>(leftRight) << std::endl;
-        std::cout << std::endl;*/
+        if (nodeAsShaderText) {
+            // isNodeLink(node.left);
+            (*nodeAsShaderText) += "VEC4("
+                + std::to_string(node.pos.x) + ", " // first
+                + std::to_string(node.pos.y) + ", " // second
+                + std::to_string(tangent) + ", " // Third
+                                                 // fourth
+                + "REINTERPRET_TO_FLOAT("
+                + std::to_string(node.left) + " * 65536 + "
+                + std::to_string(node.right)
+                + "))";
+        }
 
         return sf::Glsl::Vec4(node.pos.x, node.pos.y, tangent, reinterpret_cast<float&>(leftRight));
     }
@@ -163,13 +177,58 @@ public:
 
     const BSPNode* getLastNode() const { return m_currentNode; }
 
-private:
-    const vec2 m_imageSize;
-    std::vector<BSPNode> m_nodes;
-    std::vector<sf::Glsl::Vec4> m_packedStructs;
-    BSPNode* m_currentNode {};
+    // STRINGS ! //
+public:
+    static std::string printIndex(ushort index)
+    {
+        return (index < nodeIndexThreshold)
+            ? "color " + std::to_string(index)
+            : "next " + std::to_string(index - nodeIndexThreshold);
+    }
 
-    bool m_initialSet {};
+    std::string stringNodes()
+    {
+        std::string result;
+        for (int i = 0; i < m_nodes.size(); ++i) {
+            const auto& n = m_nodes[i];
+            result += "Node: " + std::to_string(i) + ": "
+                + printIndex(n.left) + ", " + printIndex(n.right) + " | ";
+        }
+        result += "\n";
+        return result;
+    }
+
+    // enum class ShaderType{GLSL, HLSL};
+    std::string generateShader() const
+    {
+        bool isHLSL = true;
+        std::string shaderText;
+        //"intBitsToFloat", "asfloat"
+        shaderText += isHLSL ? "#define VEC4 float4\n"
+                             : "#define VEC4 vec4\n";
+        shaderText += isHLSL ? "#define VEC2 float2\n"
+                             : "#define VEC2 vec2\n";
+        shaderText += isHLSL ? "#define REINTERPRET_TO_FLOAT asfloat\n"
+                             : "#define REINTERPRET_TO_FLOAT intBitsToFloat\n";
+        shaderText += isHLSL ? "#define REINTERPRET_TO_UINT asuint\n"
+                             : "#define REINTERPRET_TO_UINT floatBitsToUint\n";
+        shaderText += "#define MAX_DEPTH " + std::to_string(getMaxDepth(0)) + "\n";
+
+        shaderText += "VEC4 nodes[] = ";
+        shaderText += isHLSL ? "{\n" : "VEC4[](\n";
+        for (int i = 0; i < m_nodes.size(); ++i) {
+            const auto& n = m_nodes[i];
+            packNodeToVec4(n, &shaderText);
+            shaderText += (i == (m_nodes.size() - 1))
+                ? "\n"
+                : ",\n";
+        }
+
+        shaderText += isHLSL ? "};\n\n" : ");\n\n";
+
+        shaderText += traverseFunction;
+        return shaderText;
+    }
 };
 
 #endif // UVSPLIT_H

@@ -119,6 +119,10 @@ int main()
 
     });
 
+    window.addKeyEvent(sf::Keyboard::E, ModifierKey::Control | ModifierKey::Shift, [&]() {
+        std::cout << uvSplit.generateShader() << std::endl;
+    });
+
     window.setMouseDragEvent(sf::Mouse::Left,
         [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
             vec2 uvCurrentDelta = window.mapPixelToCoords(currentDelta) / textureSize;
