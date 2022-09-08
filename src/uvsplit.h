@@ -20,26 +20,6 @@ constexpr ushort nodeIndexThreshold = 1 << 15;
 // static const std::string lang_vec4_str[2] = { "vec4", "float4" };
 // static const std::string lang_asFloat[2] = { "intBitsToFloat", "asfloat" };
 
-static constexpr const char* traverseFunction
-    = "const uint nodeIndexThreshold = uint(1 << 15);\n\n"
-      "uint traverseTree(VEC2 uv){\n"
-      "  uint currentIndex = uint(0);\n"
-      "  for(int iteration = 0; iteration < MAX_DEPTH; ++iteration) {\n"
-      "    VEC2 pos = nodes[currentIndex].xy;\n"
-      "    VEC2 tangent = VEC2(nodes[currentIndex].z, 1.0);\n"
-      "    uint leftRight = REINTERPRET_TO_UINT(nodes[currentIndex].w); // reinterpret   \n"
-      "    bool isLeftPixel = dot(pos - uv, tangent) < 0.0;\n"
-      "    uint indexOfProperSide = isLeftPixel ? leftRight >> 16 : (leftRight & uint(0x0000ffff));\n"
-      "    \n"
-      "    if(indexOfProperSide >= nodeIndexThreshold) {\n"
-      "      currentIndex = indexOfProperSide - nodeIndexThreshold;\n"
-      "    } else {\n"
-      "      return indexOfProperSide;\n"
-      "    }\n"
-      "  }\n"
-      "  return uint(0);\n"
-      "}\n";
-
 struct BSPNode {
 
     BSPNode(vec2 p, vec2 d, ushort l, ushort r)
@@ -198,10 +178,15 @@ public:
         return result;
     }
 
-    // enum class ShaderType{GLSL, HLSL};
-    std::string generateShader() const
+    enum class ShaderType {
+        GLSL,
+        HLSL,
+        UnrealCustomNode
+    };
+
+    std::string generateShader(ShaderType shaderType) const
     {
-        bool isHLSL = true;
+        bool isHLSL = shaderType != ShaderType::GLSL;
         std::string shaderText;
         //"intBitsToFloat", "asfloat"
         shaderText += isHLSL ? "#define VEC4 float4\n"
@@ -226,7 +211,26 @@ public:
 
         shaderText += isHLSL ? "};\n\n" : ");\n\n";
 
-        shaderText += traverseFunction;
+        shaderText += "const uint nodeIndexThreshold = uint(1 << 15);\n\n";
+        shaderText += shaderType != ShaderType::UnrealCustomNode ? "uint traverseTree(VEC2 uv){\n" : "\n";
+        shaderText
+            += "  uint currentIndex = uint(0);\n"
+               "  for(int iteration = 0; iteration < MAX_DEPTH; ++iteration) {\n"
+               "    VEC2 pos = nodes[currentIndex].xy;\n"
+               "    VEC2 tangent = VEC2(nodes[currentIndex].z, 1.0);\n"
+               "    uint leftRight = REINTERPRET_TO_UINT(nodes[currentIndex].w); // reinterpret   \n"
+               "    bool isLeftPixel = dot(pos - uv, tangent) < 0.0;\n"
+               "    uint indexOfProperSide = isLeftPixel ? leftRight >> 16 : (leftRight & uint(0x0000ffff));\n"
+               "    \n"
+               "    if(indexOfProperSide >= nodeIndexThreshold) {\n"
+               "      currentIndex = indexOfProperSide - nodeIndexThreshold;\n"
+               "    } else {\n"
+               "      return indexOfProperSide;\n"
+               "    }\n"
+               "  }\n"
+               "  return uint(0);\n";
+        shaderText += shaderType != ShaderType::UnrealCustomNode ? "}\n" : "\n";
+
         return shaderText;
     }
 };

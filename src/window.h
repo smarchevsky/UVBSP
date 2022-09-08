@@ -42,17 +42,14 @@ struct hash<KeyWithModifier> {
 }
 
 // ivec2 startPos, ivec2 currentPos, ivec2 currentDelta
-typedef std::function<void(ivec2, ivec2, ivec2)>
-    MouseDragEvent;
+typedef std::function<void(ivec2, ivec2, ivec2)> MouseDragEvent;
 // float scrollDelta, ivec2 mousePos
-typedef std::function<void(float, ivec2)>
-    MouseScrollEvent;
+typedef std::function<void(float, ivec2)> MouseScrollEvent;
 // ivec2 pos, bool mouseDown
-typedef std::function<void(ivec2, bool)>
-    MouseClickEvent;
+typedef std::function<void(ivec2, bool)> MouseClickEvent;
 
-typedef std::function<void()>
-    KeyDownEvent;
+typedef std::function<void()> KeyDownEvent;
+typedef std::function<void(KeyWithModifier)> AnyKeyEvent;
 
 struct DragEvent {
     MouseDragEvent event {};
@@ -96,10 +93,14 @@ public:
                 KeyWithModifier currentKey(event.key.code,
                     event.key.alt, event.key.control, event.key.shift, event.key.system);
 
+                if (m_anyKeyEvent)
+                    m_anyKeyEvent(currentKey);
+
                 auto keyEventIter = m_keyMap.find(currentKey);
                 if (keyEventIter != m_keyMap.end()) {
                     keyEventIter->second();
                 }
+
             } break;
             case sf::Event::KeyReleased:
                 break;
@@ -222,11 +223,13 @@ public:
     }
 
     void setScrollEvent(MouseScrollEvent event) { m_mouseScrollEvent = event; }
+
     void addKeyEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyDownEvent event)
     {
         m_keyMap.insert({ KeyWithModifier(key, modifier), event });
     }
 
+    void setAnyKeyEvent(AnyKeyEvent event) { m_anyKeyEvent = event; }
     void exit()
     {
         if (m_preCloseEvent)
@@ -240,6 +243,7 @@ private:
     MouseClickEvent m_clickEventLMB {}, m_clickEventMMB {}, m_clickEventRMB {};
     MouseScrollEvent m_mouseScrollEvent {};
     std::unordered_map<KeyWithModifier, KeyDownEvent> m_keyMap;
+    AnyKeyEvent m_anyKeyEvent;
 
     ivec2 m_mousePos {};
     uvec2 m_windowSize {};

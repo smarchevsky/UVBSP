@@ -118,9 +118,30 @@ int main()
         updateWindowTitle();
 
     });
-
+    bool isReadyToExport {};
     window.addKeyEvent(sf::Keyboard::E, ModifierKey::Control | ModifierKey::Shift, [&]() {
-        std::cout << uvSplit.generateShader() << std::endl;
+        isReadyToExport = true;
+        window.setTitle("Export shader to: G-glsl, H-hlsl, U-unreal");
+    });
+
+    window.setAnyKeyEvent([&](KeyWithModifier key) {
+        if (isReadyToExport) {
+            switch (key.key) {
+            case sf::Keyboard::G:
+                std::cout << uvSplit.generateShader(UVSplit::ShaderType::GLSL) << std::endl;
+                break;
+            case sf::Keyboard::H:
+                std::cout << uvSplit.generateShader(UVSplit::ShaderType::HLSL) << std::endl;
+                break;
+            case sf::Keyboard::U:
+                std::cout << uvSplit.generateShader(UVSplit::ShaderType::UnrealCustomNode) << std::endl;
+                break;
+            default: {
+            }
+            }
+            window.setTitle("Shader printed to command line, copy there");
+        }
+        isReadyToExport = false;
     });
 
     window.setMouseDragEvent(sf::Mouse::Left,
