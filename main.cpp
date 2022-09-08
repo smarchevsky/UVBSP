@@ -1,8 +1,9 @@
+
+#include <SFML/Window/Clipboard.hpp>
 #include <uvsplit.h>
 #include <window.h>
 
 #include <assert.h>
-
 #include <iostream>
 #include <math.h>
 
@@ -126,20 +127,27 @@ int main()
 
     window.setAnyKeyEvent([&](KeyWithModifier key) {
         if (isReadyToExport) {
+            std::string shaderText;
             switch (key.key) {
             case sf::Keyboard::G:
-                std::cout << uvSplit.generateShader(UVSplit::ShaderType::GLSL) << std::endl;
+                shaderText = uvSplit.generateShader(UVSplit::ShaderType::GLSL);
+                sf::Clipboard::setString(shaderText);
+                std::cout << shaderText << std::endl;
                 break;
             case sf::Keyboard::H:
-                std::cout << uvSplit.generateShader(UVSplit::ShaderType::HLSL) << std::endl;
+                shaderText = uvSplit.generateShader(UVSplit::ShaderType::HLSL);
+                sf::Clipboard::setString(shaderText);
+                std::cout << shaderText << std::endl;
                 break;
             case sf::Keyboard::U:
-                std::cout << uvSplit.generateShader(UVSplit::ShaderType::UnrealCustomNode) << std::endl;
+                shaderText = uvSplit.generateShader(UVSplit::ShaderType::UnrealCustomNode);
+                sf::Clipboard::setString(shaderText);
+                std::cout << shaderText << std::endl;
                 break;
             default: {
             }
             }
-            window.setTitle("Shader printed to command line, copy there");
+            window.setTitle("Shader code copied to clipboard, you're welcome :)");
         }
         isReadyToExport = false;
     });
