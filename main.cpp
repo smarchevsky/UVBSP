@@ -54,7 +54,6 @@ private:
 
 int main(int argc, char** argv)
 {
-
     Window window(sf::VideoMode(defaultWindowSize.x, defaultWindowSize.y), "UVBSP");
 
     window.addKeyEvent(sf::Keyboard::Escape, ModifierKey::None, [&window]() { window.exit(); });
@@ -108,7 +107,7 @@ int main(int argc, char** argv)
     auto updateWindowTitle = [&]() {
         window.setTitle("Node count: " + std::to_string(uvSplit.getNumNodes())
             + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth()));
-        LOG(uvSplit.stringNodes());
+        LOG(uvSplit.printNodes());
     };
 
     bool isMouseDragging = false;
@@ -119,17 +118,29 @@ int main(int argc, char** argv)
             if (lastNode) {
                 UVSplitAction split(lastNode->pos, lastNode->dir, lastNode->left, lastNode->right);
                 splitActions.add(split);
-
                 updateWindowTitle();
             }
         }
+    });
+
+    // projectDir
+
+    window.addKeyEvent(sf::Keyboard::S, ModifierKey::Control, [&]() { // undo
+        std::string fileDir = projectDir + "/test.uvbsp";
+        uvSplit.writeToFile(fileDir);
+        window.setTitle("Saved to: " + fileDir);
+    });
+
+    window.addKeyEvent(sf::Keyboard::O, ModifierKey::Control, [&]() { // undo
+        std::string fileDir = projectDir + "/test.uvbsp";
+        uvSplit.readFromFile(fileDir);
+        uvSplit.updateUniforms(textureShader);
     });
 
     window.addKeyEvent(sf::Keyboard::Z, ModifierKey::Control, [&]() { // undo
         if (splitActions.undo())
             colorIndex -= 2;
         uvSplit.updateUniforms(textureShader);
-
         updateWindowTitle();
 
     });

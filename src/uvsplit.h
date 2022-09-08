@@ -1,10 +1,13 @@
 #ifndef UVSPLIT_H
 #define UVSPLIT_H
 
+#include <../thirdparty/base64.hpp>
 #include <SFML/Graphics/Shader.hpp>
 #include <bitset>
+#include <fstream>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vec2.h>
@@ -21,7 +24,7 @@ constexpr ushort nodeIndexThreshold = 1 << 15;
 // static const std::string lang_asFloat[2] = { "intBitsToFloat", "asfloat" };
 
 struct BSPNode {
-
+    BSPNode() = default;
     BSPNode(vec2 p, vec2 d, ushort l, ushort r)
         : pos(p)
         , dir(d)
@@ -112,9 +115,11 @@ public:
 
     static sf::Glsl::Vec4 packNodeToVec4(BSPNode node, std::string* nodeAsShaderText = nullptr)
     {
+        if (abs(node.dir.y) < 0.000001f)
+            node.dir.y = 0.000001f;
+
         float tangent = node.dir.x / node.dir.y;
-        float range = 99999.f;
-        std::clamp(tangent, -range, range);
+
         if (node.dir.y < 0)
             std::swap(node.left, node.right);
 
@@ -146,6 +151,35 @@ public:
         shader.setUniformArray("nodes", m_packedStructs.data(), m_packedStructs.size());
     }
 
+    bool readFromFile(const std::string& path)
+    {
+        std::ifstream myfile(path);
+        std::string baseString((std::istreambuf_iterator<char>(myfile)), std::istreambuf_iterator<char>());
+
+        if (baseString.size()) {
+            reset();
+            std::string dataString = websocketpp::base64_decode(baseString);
+            size_t arraySize = dataString.size() / sizeof(BSPNode);
+            const uint8_t* data = (uint8_t*)(void*)m_nodes.data();
+            m_nodes.resize(arraySize);
+            for (size_t i = 0; i < arraySize * sizeof(BSPNode); ++i) {
+                ((uint8_t*)(void*)m_nodes.data())[i] = dataString[i];
+            }
+        }
+        printNodes();
+        // std::cout << str.size() << std::endl;
+    }
+
+    void writeToFile(const std::string& path)
+    {
+        size_t arraySize = m_nodes.size() * sizeof(BSPNode);
+        const uint8_t* data = (uint8_t*)(void*)m_nodes.data();
+        if (arraySize) {
+            std::ofstream myfile(path, std::ios::out);
+            myfile << websocketpp::base64_encode(data, arraySize);
+        }
+    }
+
     void reset()
     {
         m_nodes.clear();
@@ -166,7 +200,7 @@ public:
             : "next " + std::to_string(index - nodeIndexThreshold);
     }
 
-    std::string stringNodes()
+    std::string printNodes()
     {
         std::string result;
         for (int i = 0; i < m_nodes.size(); ++i) {
