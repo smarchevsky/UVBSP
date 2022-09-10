@@ -133,9 +133,8 @@ public:
                 + std::to_string(tangent) + ", " // Third
                                                  // fourth
                 + "REINTERPRET_TO_FLOAT("
-                + std::to_string(node.left) + " * 65536 + "
-                + std::to_string(node.right)
-                + "))";
+                + std::to_string(node.left) + "u * 65536u + "
+                + std::to_string(node.right) + "u))";
         }
 
         return sf::Glsl::Vec4(node.pos.x, node.pos.y, tangent, reinterpret_cast<float&>(leftRight));
@@ -227,10 +226,20 @@ public:
                              : "#define VEC4 vec4\n";
         shaderText += isHLSL ? "#define VEC2 float2\n"
                              : "#define VEC2 vec2\n";
-        shaderText += isHLSL ? "#define REINTERPRET_TO_FLOAT asfloat\n"
-                             : "#define REINTERPRET_TO_FLOAT intBitsToFloat\n";
-        shaderText += isHLSL ? "#define REINTERPRET_TO_UINT asuint\n"
-                             : "#define REINTERPRET_TO_UINT floatBitsToUint\n";
+
+        // HLSL optimizes float constants, that have all 0 exponent bits
+        // if at least one of 1 << 23 to 1 << 31 bits are true - this float will be not optimized out
+
+        // 0 00000000 00000000000000000000000 - float representation
+        // 0_00000000_0000000 0000000000000000 - bitfield
+        // To achieve optimization - all bits of left node from 7 to 15 bits must be !0 (ints between 32640 to 32767)
+        // this nodes will be optimized out, so nevermind, compiler will not allow you to do this :)
+        // thats why in HLSL asfloat(~(x)) and ~asuint(x)
+
+        shaderText += isHLSL ? "#define REINTERPRET_TO_FLOAT(x) asfloat(~(x))\n"
+                             : "#define REINTERPRET_TO_FLOAT(x) uintBitsToFloat(x)\n";
+        shaderText += isHLSL ? "#define REINTERPRET_TO_UINT(x) ~asuint(x)\n"
+                             : "#define REINTERPRET_TO_UINT(x) floatBitsToUint(x)\n";
         shaderText += "#define MAX_DEPTH " + std::to_string(getMaxDepth(0)) + "\n";
 
         shaderText += "VEC4 nodes[] = ";
