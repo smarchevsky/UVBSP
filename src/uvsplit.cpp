@@ -97,8 +97,8 @@ static Vec4 packNodeToShader(BSPNode node, UVSplit::ExportArrayFormat format, st
     constexpr float threshold = 1.f / (1 << 24); // vertical line
     if (abs(node.dir.y) < threshold)
         node.dir.y = threshold;
-
     const float tangent = node.dir.x / node.dir.y;
+    uint tangentBits = reinterpret_cast<const uint&>(tangent);
 
     if (node.dir.y < 0)
         std::swap(node.left, node.right);
@@ -136,6 +136,22 @@ static Vec4 packNodeToShader(BSPNode node, UVSplit::ExportArrayFormat format, st
                 << std::to_string(node.right) << "u))";
         }
     } break;
+    case UVSplit::ExportArrayFormat::SingleFloatCoordAsUint: {
+        if (outStream) {
+
+            float normalizedPos = node.pos.x + node.pos.y / tangent;
+            uint normalizedPosBits = reinterpret_cast<const uint&>(normalizedPos);
+
+            (*outStream)
+                << "UVEC3(" // << std::hex
+                << normalizedPosBits << "u, " // first
+                << tangentBits << "u, " // third
+                << std::dec
+                // fourth
+                << "(" << std::to_string(node.left) << "u * 65536u + "
+                << std::to_string(node.right) << "u))";
+        }
+    } break;
     }
 
     return Vec4(node.pos.x, node.pos.y, tangent, reinterpret_cast<float&>(leftRight));
@@ -144,21 +160,25 @@ static Vec4 packNodeToShader(BSPNode node, UVSplit::ExportArrayFormat format, st
 std::stringstream UVSplit::generateShader(ShaderType shaderType, ExportArrayFormat arrayType) const
 {
     bool isHLSL = shaderType != ShaderType::GLSL;
+    const size_t arraySize = m_nodes.size();
     std::stringstream shaderText;
     //"intBitsToFloat", "asfloat"
     shaderText << "/////// START_UVBSP_GENERATED_SHADER ////////\n\n";
 
     shaderText << (isHLSL ? "#define UVEC4 uint4\n" : "#define UVEC4 uvec4\n")
+               << (isHLSL ? "#define UVEC3 uint3\n" : "#define UVEC3 uvec3\n")
                << (isHLSL ? "#define VEC4 float4\n" : "#define VEC4 vec4\n")
                << (isHLSL ? "#define VEC2 float2\n" : "#define VEC2 vec2\n");
 
     if (isHLSL) {
         switch (arrayType) {
+
         case UVSplit::ExportArrayFormat::Float: // float type must be deprecated...
             shaderText << "#define REINTERPRET_TO_FLOAT(x) asfloat(~(x))\n"
                        << "#define REINTERPRET_TO_UINT(x) ~asuint(x)\n";
             break;
         case UVSplit::ExportArrayFormat::FloatAsUint:
+        case UVSplit::ExportArrayFormat::SingleFloatCoordAsUint:
             shaderText << "#define REINTERPRET_TO_FLOAT(x) asfloat(x)\n"
                        << "#define REINTERPRET_TO_UINT(x) asuint(x)\n";
             break;
@@ -169,14 +189,15 @@ std::stringstream UVSplit::generateShader(ShaderType shaderType, ExportArrayForm
                    << "#define REINTERPRET_TO_UINT(x) floatBitsToUint(x)\n";
     }
 
-    shaderText << "#define MAX_DEPTH " + std::to_string(getMaxDepth(0)) + "\n";
-
     switch (arrayType) {
     case UVSplit::ExportArrayFormat::Float:
-        shaderText << "VEC4 nodes[] = " << (isHLSL ? "{\n" : "VEC4[](\n");
+        shaderText << "VEC4 nodes[" << arraySize << "] = " << (isHLSL ? "{\n" : "VEC4[](\n");
         break;
     case UVSplit::ExportArrayFormat::FloatAsUint:
-        shaderText << "UVEC4 nodes[] = " << (isHLSL ? "{\n" : "UVEC4[](\n");
+        shaderText << "UVEC4 nodes[" << arraySize << "] = " << (isHLSL ? "{\n" : "UVEC4[](\n");
+        break;
+    case UVSplit::ExportArrayFormat::SingleFloatCoordAsUint:
+        shaderText << "UVEC3 nodes[" << arraySize << "] = " << (isHLSL ? "{\n" : "UVEC3[](\n");
         break;
     }
 
@@ -187,22 +208,29 @@ std::stringstream UVSplit::generateShader(ShaderType shaderType, ExportArrayForm
 
     shaderText << (isHLSL ? "};\n\n" : ");\n\n");
 
-    shaderText << "const uint nodeIndexThreshold = uint(1 << 15);\n\n";
     shaderText << (shaderType != ShaderType::UnrealCustomNode ? "uint traverseTree(VEC2 uv){\n" : "\n");
+
+    shaderText << "  const uint nodeIndexThreshold = uint(1 << 15);\n";
     shaderText
-        << "  uint currentIndex = uint(0);\n"
-           "  for(int iteration = 0; iteration < MAX_DEPTH; ++iteration) {\n";
+        << "  uint currentIndex = 0u;\n"
+           "  for(int iteration = 0; iteration < "
+        << getMaxDepth(0) << "; ++iteration) {\n";
     switch (arrayType) {
-    case UVSplit::ExportArrayFormat::Float:
+    case UVSplit::ExportArrayFormat::Float: {
         shaderText << "    VEC2 pos = nodes[currentIndex].xy;\n"
                       "    VEC2 tangent = VEC2(nodes[currentIndex].z, 1.0);\n"
                       "    uint leftRight = REINTERPRET_TO_UINT(nodes[currentIndex].w); // reinterpret   \n";
-        break;
-    case UVSplit::ExportArrayFormat::FloatAsUint:
+    } break;
+    case UVSplit::ExportArrayFormat::FloatAsUint: {
         shaderText << "    VEC2 pos = REINTERPRET_TO_FLOAT(nodes[currentIndex].xy);\n"
                       "    VEC2 tangent = VEC2(REINTERPRET_TO_FLOAT(nodes[currentIndex].z), 1.0);\n"
                       "    uint leftRight = nodes[currentIndex].w; // reinterpret   \n";
-        break;
+    } break;
+    case UVSplit::ExportArrayFormat::SingleFloatCoordAsUint: {
+        shaderText << "    VEC2 pos = VEC2(REINTERPRET_TO_FLOAT(nodes[currentIndex].x), 0.0);\n"
+                      "    VEC2 tangent = VEC2(REINTERPRET_TO_FLOAT(nodes[currentIndex].y), 1.0);\n"
+                      "    uint leftRight = nodes[currentIndex].z; // reinterpret   \n";
+    } break;
     }
 
     shaderText
@@ -215,10 +243,11 @@ std::stringstream UVSplit::generateShader(ShaderType shaderType, ExportArrayForm
            "      return indexOfProperSide;\n"
            "    }\n"
            "  }\n"
-           "  return uint(0);\n";
+           "  return 0u;\n";
 
     shaderText << (shaderType != ShaderType::UnrealCustomNode ? "}\n" : "\n");
-    shaderText << "/////// END_UVBSP_GENERATED_SHADER ////////\n";
+    shaderText << "/////// END_UVBSP_GENERATED_SHADER ////////\n"
+               << std::endl;
 
     return shaderText;
 }

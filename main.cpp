@@ -169,7 +169,7 @@ int main(int argc, char** argv)
             }
             }
             shaderText = uvSplit.generateShader(shaderExportType,
-                                    UVSplit::ExportArrayFormat::FloatAsUint)
+                                    UVSplit::ExportArrayFormat::SingleFloatCoordAsUint)
                              .str();
             std::cout << shaderText << std::endl;
             sf::Clipboard::setString(shaderText);

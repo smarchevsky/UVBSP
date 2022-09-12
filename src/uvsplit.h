@@ -48,17 +48,18 @@ struct UVSplitAction {
 };
 
 class UVSplit {
+public:
+    // clang-format off
+    enum class ShaderType { GLSL, HLSL, UnrealCustomNode };
+    enum class ExportArrayFormat { Float, FloatAsUint, SingleFloatCoordAsUint };
+    // clang-format on
+
+private:
     std::vector<BSPNode> m_nodes;
     std::vector<Vec4> m_packedStructs;
     BSPNode* m_currentNode {};
 
     bool m_initialSet {};
-
-public:
-    // clang-format off
-    enum class ShaderType { GLSL, HLSL, UnrealCustomNode };
-    enum class ExportArrayFormat { Float, FloatAsUint } m_exportType = ExportArrayFormat::FloatAsUint;
-    // clang-format on
 
 public:
     static bool isNodeLink(ushort index) { return index >= nodeIndexThreshold; }
