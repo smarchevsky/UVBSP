@@ -3,15 +3,17 @@
 #extension GL_EXT_gpu_shader4 : enable
 
 uniform sampler2D texture;
+const float pi = 3.1415926535;
+const float pi_inv = 1. / pi;
 
-const float pi_div3 = 1.047197551;
+vec3 fastSin(vec3 x) { x = fract(x * 2.) - 1.; return (4. * x) * (1. - abs(x)); }
+
 vec3 rainbow(float val){
-  vec3 result = vec3(sin(val), sin(val + pi_div3), sin(val + pi_div3 * 2.0));
-  return result * result;
+    vec3 result = fastSin(vec3(val * 0.313 + vec3(0, 0.33333, 0.66666)));
+    return result * result;
 }
 
-
-uniform vec4 nodes[512]; // node is actually a struct of vec2, float and 2 shorts
+uniform vec4 nodes[512];
 
 /// Node indices are represented as unsigned short 16 bit integers
 /// 0 ... 32767 are color indices
@@ -20,10 +22,8 @@ uniform vec4 nodes[512]; // node is actually a struct of vec2, float and 2 short
 
 #define MAX_DEPTH 64
 
-
-
-const uint nodeIndexThreshold = uint(1 << 15);
 uint traverseTree(vec2 uv){
+  const uint nodeIndexThreshold = uint(1 << 15);
   uint currentIndex = uint(0);
 
   for(int iteration = 0; iteration < MAX_DEPTH; ++iteration) {
@@ -33,7 +33,7 @@ uint traverseTree(vec2 uv){
     uint leftRight = floatBitsToUint(nodes[currentIndex].w); // reinterpret   
     bool isLeftPixel = dot(pos - uv, tangent) < 0.0;
 
-    uint indexOfProperSide = isLeftPixel ? leftRight >> 16 : (leftRight & uint(0x0000ffff));
+    uint indexOfProperSide = isLeftPixel ? leftRight >> 16 : (leftRight & 0x0000ffffu);
     
     if(indexOfProperSide >= nodeIndexThreshold) {
       currentIndex = indexOfProperSide - nodeIndexThreshold;
@@ -50,6 +50,6 @@ void main() {
   vec2 uv = gl_TexCoord[0].xy;
   uint index = traverseTree(uv); vec3 hint = rainbow(0.5 * float(index));
   vec3 textureColor = texture2D(texture, uv).rgb;
-  gl_FragColor = vec4(mix(textureColor, hint, vec3(0.5)), 1.0);
+  gl_FragColor = vec4(mix(textureColor, hint, vec3(0.99)), 1.0);
   // gl_FragColor = vec4(hint, 1.0);
 }
