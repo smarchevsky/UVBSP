@@ -1,17 +1,15 @@
 #ifndef UVSPLIT_H
 #define UVSPLIT_H
 
-#include <../thirdparty/base64.hpp>
 #include <SFML/Graphics/Shader.hpp>
 #include <bitset>
-#include <fstream>
 #include <iostream>
-#include <optional>
-#include <sstream>
+
 #include <string>
-#include <string_view>
 #include <vec2.h>
 #include <vector>
+
+typedef sf::Glsl::Vec4 Vec4;
 
 constexpr ushort nodeIndexThreshold = 1 << 15;
 /////////////////////////////////////////////
@@ -50,143 +48,49 @@ struct UVSplitAction {
 };
 
 class UVSplit {
-    const vec2 m_imageSize;
     std::vector<BSPNode> m_nodes;
-    std::vector<sf::Glsl::Vec4> m_packedStructs;
+    std::vector<Vec4> m_packedStructs;
     BSPNode* m_currentNode {};
 
     bool m_initialSet {};
 
 public:
+    // clang-format off
+    enum class ShaderType { GLSL, HLSL, UnrealCustomNode };
+    enum class ExportArrayFormat { Float, FloatAsUint } m_exportType = ExportArrayFormat::FloatAsUint;
+    // clang-format on
+
+public:
     static bool isNodeLink(ushort index) { return index >= nodeIndexThreshold; }
 
-    UVSplit(const vec2& imageSize)
-        : m_imageSize(imageSize)
-    {
-        reset();
-    }
+    UVSplit(const vec2& imageSize) { reset(); }
 
     ushort getMaxDepth(ushort nodeIndex = 0) const
     {
         ushort left {}, right {};
-        if (isNodeLink(m_nodes[nodeIndex].left)) {
+        if (isNodeLink(m_nodes[nodeIndex].left))
             left = getMaxDepth(m_nodes[nodeIndex].left - nodeIndexThreshold);
-        }
-        if (isNodeLink(m_nodes[nodeIndex].right)) {
+        if (isNodeLink(m_nodes[nodeIndex].right))
             right = getMaxDepth(m_nodes[nodeIndex].right - nodeIndexThreshold);
-        }
         return std::max(left, right) + 1;
     }
+
     size_t getNumNodes() const { return m_nodes.size(); }
 
-    void addSplit(UVSplitAction split)
-    {
-        if (!m_initialSet) {
-            m_nodes[0] = BSPNode(split.pos, split.dir, split.c0, split.c1);
-            m_currentNode = &m_nodes[0];
-            m_initialSet = true;
+    void addSplit(UVSplitAction split);
 
-        } else {
-            int currentIndex = 0;
-            for (int iteration = 0; iteration < 64; ++iteration) {
-                bool isLeftPixel = dot(m_nodes[currentIndex].pos - split.pos, m_nodes[currentIndex].dir) < 0.0;
-                uint16_t& indexOfProperSide = isLeftPixel ? m_nodes[currentIndex].left : m_nodes[currentIndex].right;
-
-                if (isNodeLink(indexOfProperSide)) {
-                    currentIndex = indexOfProperSide - nodeIndexThreshold;
-
-                } else {
-                    indexOfProperSide = m_nodes.size() + nodeIndexThreshold;
-
-                    m_nodes.emplace_back(BSPNode(split.pos, split.dir, split.c0, split.c1));
-                    m_currentNode = &m_nodes.back();
-
-                    break;
-                }
-            }
-        }
-    }
     void adjustSplit(const vec2& uvDir)
     {
-        if (m_currentNode) {
+        if (m_currentNode)
             m_currentNode->dir = uvDir;
-        }
     }
 
-    static sf::Glsl::Vec4 packNodeToVec4(BSPNode node, std::string* nodeAsShaderText = nullptr)
-    {
-        if (abs(node.dir.y) < 0.000001f)
-            node.dir.y = 0.000001f;
+    void updateUniforms(sf::Shader& shader);
 
-        float tangent = node.dir.x / node.dir.y;
+    bool readFromFile(const std::string& path);
+    void writeToFile(const std::string& path);
 
-        if (node.dir.y < 0)
-            std::swap(node.left, node.right);
-
-        uint leftRight = (node.left << 16) | node.right & 0xffff;
-
-        if (nodeAsShaderText) {
-            // isNodeLink(node.left);
-            (*nodeAsShaderText) += "VEC4("
-                + std::to_string(node.pos.x) + ", " // first
-                + std::to_string(node.pos.y) + ", " // second
-                + std::to_string(tangent) + ", " // Third
-                                                 // fourth
-                + "REINTERPRET_TO_FLOAT("
-                + std::to_string(node.left) + "u * 65536u + "
-                + std::to_string(node.right) + "u))";
-        }
-
-        return sf::Glsl::Vec4(node.pos.x, node.pos.y, tangent, reinterpret_cast<float&>(leftRight));
-    }
-
-    void updateUniforms(sf::Shader& shader)
-    {
-        m_packedStructs.resize(m_nodes.size());
-
-        for (int i = 0; i < m_nodes.size(); ++i)
-            m_packedStructs[i] = packNodeToVec4(m_nodes[i]);
-
-        shader.setUniformArray("nodes", m_packedStructs.data(), m_packedStructs.size());
-    }
-
-    bool readFromFile(const std::string& path)
-    {
-        std::ifstream myfile(path);
-        std::string baseString((std::istreambuf_iterator<char>(myfile)), std::istreambuf_iterator<char>());
-
-        if (baseString.size()) {
-            reset();
-            std::string dataString = websocketpp::base64_decode(baseString);
-            size_t arraySize = dataString.size() / sizeof(BSPNode);
-            const uint8_t* data = (uint8_t*)(void*)m_nodes.data();
-            m_nodes.resize(arraySize);
-            for (size_t i = 0; i < arraySize * sizeof(BSPNode); ++i) {
-                ((uint8_t*)(void*)m_nodes.data())[i] = dataString[i];
-            }
-        }
-        printNodes();
-        // std::cout << str.size() << std::endl;
-    }
-
-    void writeToFile(const std::string& path)
-    {
-        size_t arraySize = m_nodes.size() * sizeof(BSPNode);
-        const uint8_t* data = (uint8_t*)(void*)m_nodes.data();
-        if (arraySize) {
-            std::ofstream myfile(path, std::ios::out);
-            myfile << websocketpp::base64_encode(data, arraySize);
-        }
-    }
-
-    void reset()
-    {
-        m_nodes.clear();
-        m_nodes.push_back({ vec2(0.5f, 0.5f), vec2(1, 1), 0, 0 });
-        m_packedStructs.clear();
-        m_currentNode = nullptr;
-        m_initialSet = false;
-    }
+    void reset();
 
     const BSPNode* getLastNode() const { return m_currentNode; }
 
@@ -199,83 +103,9 @@ public:
             : "next " + std::to_string(index - nodeIndexThreshold);
     }
 
-    std::string printNodes()
-    {
-        std::string result;
-        for (int i = 0; i < m_nodes.size(); ++i) {
-            const auto& n = m_nodes[i];
-            result += "Node: " + std::to_string(i) + ": "
-                + printIndex(n.left) + ", " + printIndex(n.right) + " | ";
-        }
-        result += "\n";
-        return result;
-    }
+    std::string printNodes();
 
-    enum class ShaderType {
-        GLSL,
-        HLSL,
-        UnrealCustomNode
-    };
-
-    std::string generateShader(ShaderType shaderType) const
-    {
-        bool isHLSL = shaderType != ShaderType::GLSL;
-        std::string shaderText;
-        //"intBitsToFloat", "asfloat"
-        shaderText += isHLSL ? "#define VEC4 float4\n"
-                             : "#define VEC4 vec4\n";
-        shaderText += isHLSL ? "#define VEC2 float2\n"
-                             : "#define VEC2 vec2\n";
-
-        // HLSL optimizes float constants, that have all 0 exponent bits
-        // if at least one of 1 << 23 to 1 << 31 bits are true - this float will be not optimized out
-
-        // 0 00000000 00000000000000000000000 - float representation
-        // 0_00000000_0000000 0000000000000000 - bitfield
-        // To achieve optimization - all bits of left node from 7 to 15 bits must be !0 (ints between 32640 to 32767)
-        // this nodes will be optimized out, so nevermind, compiler will not allow you to do this :)
-        // thats why in HLSL asfloat(~(x)) and ~asuint(x)
-
-        shaderText += isHLSL ? "#define REINTERPRET_TO_FLOAT(x) asfloat(~(x))\n"
-                             : "#define REINTERPRET_TO_FLOAT(x) uintBitsToFloat(x)\n";
-        shaderText += isHLSL ? "#define REINTERPRET_TO_UINT(x) ~asuint(x)\n"
-                             : "#define REINTERPRET_TO_UINT(x) floatBitsToUint(x)\n";
-        shaderText += "#define MAX_DEPTH " + std::to_string(getMaxDepth(0)) + "\n";
-
-        shaderText += "VEC4 nodes[] = ";
-        shaderText += isHLSL ? "{\n" : "VEC4[](\n";
-        for (int i = 0; i < m_nodes.size(); ++i) {
-            const auto& n = m_nodes[i];
-            packNodeToVec4(n, &shaderText);
-            shaderText += (i == (m_nodes.size() - 1))
-                ? "\n"
-                : ",\n";
-        }
-
-        shaderText += isHLSL ? "};\n\n" : ");\n\n";
-
-        shaderText += "const uint nodeIndexThreshold = uint(1 << 15);\n\n";
-        shaderText += shaderType != ShaderType::UnrealCustomNode ? "uint traverseTree(VEC2 uv){\n" : "\n";
-        shaderText
-            += "  uint currentIndex = uint(0);\n"
-               "  for(int iteration = 0; iteration < MAX_DEPTH; ++iteration) {\n"
-               "    VEC2 pos = nodes[currentIndex].xy;\n"
-               "    VEC2 tangent = VEC2(nodes[currentIndex].z, 1.0);\n"
-               "    uint leftRight = REINTERPRET_TO_UINT(nodes[currentIndex].w); // reinterpret   \n"
-               "    bool isLeftPixel = dot(pos - uv, tangent) < 0.0;\n"
-               "    uint indexOfProperSide = isLeftPixel ? leftRight >> 16 : (leftRight & uint(0x0000ffff));\n"
-               "    \n"
-               "    if(indexOfProperSide >= nodeIndexThreshold) {\n"
-               "      currentIndex = indexOfProperSide - nodeIndexThreshold;\n"
-               "    } else {\n"
-               "      return indexOfProperSide;\n"
-               "    }\n"
-               "  }\n"
-               "  return uint(0);\n";
-        shaderText += shaderType != ShaderType::UnrealCustomNode ? "}\n" : "\n";
-
-        return shaderText;
-    }
+    std::stringstream generateShader(ShaderType shaderType, ExportArrayFormat arrayType) const;
 };
 
 #endif // UVSPLIT_H

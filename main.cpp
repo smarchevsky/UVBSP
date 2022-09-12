@@ -1,11 +1,11 @@
 
 #include <SFML/Window/Clipboard.hpp>
-#include <uvsplit.h>
-#include <window.h>
-
 #include <assert.h>
 #include <iostream>
 #include <math.h>
+#include <sstream>
+#include <uvsplit.h>
+#include <window.h>
 
 #define LOG(x) std::cout << x << std::endl
 const vec2 defaultWindowSize(1024, 768);
@@ -153,25 +153,27 @@ int main(int argc, char** argv)
     window.setAnyKeyEvent([&](KeyWithModifier key) {
         if (isReadyToExport) {
             std::string shaderText;
+            UVSplit::ShaderType shaderExportType;
             switch (key.key) {
             case sf::Keyboard::G:
-                shaderText = uvSplit.generateShader(UVSplit::ShaderType::GLSL);
-                sf::Clipboard::setString(shaderText);
-                std::cout << shaderText << std::endl;
+                shaderExportType = UVSplit::ShaderType::GLSL;
                 break;
             case sf::Keyboard::H:
-                shaderText = uvSplit.generateShader(UVSplit::ShaderType::HLSL);
-                sf::Clipboard::setString(shaderText);
-                std::cout << shaderText << std::endl;
+                shaderExportType = UVSplit::ShaderType::HLSL;
                 break;
             case sf::Keyboard::U:
-                shaderText = uvSplit.generateShader(UVSplit::ShaderType::UnrealCustomNode);
-                sf::Clipboard::setString(shaderText);
-                std::cout << shaderText << std::endl;
+                shaderExportType = UVSplit::ShaderType::UnrealCustomNode;
                 break;
             default: {
+                return;
             }
             }
+            shaderText = uvSplit.generateShader(shaderExportType,
+                                    UVSplit::ExportArrayFormat::FloatAsUint)
+                             .str();
+            std::cout << shaderText << std::endl;
+            sf::Clipboard::setString(shaderText);
+
             window.setTitle("Shader code copied to clipboard, you're welcome :)");
         }
         isReadyToExport = false;
