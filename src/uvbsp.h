@@ -47,7 +47,7 @@ struct UVSplitAction {
     ushort c0, c1;
 };
 
-class UVSplit {
+class UVBSP {
 public:
     // clang-format off
     enum class ShaderType { GLSL, HLSL, UnrealCustomNode };
@@ -64,7 +64,7 @@ private:
 public:
     static bool isNodeLink(ushort index) { return index >= nodeIndexThreshold; }
 
-    UVSplit(const vec2& imageSize) { reset(); }
+    UVBSP(const vec2& imageSize) { reset(); }
 
     ushort getMaxDepth(ushort nodeIndex = 0) const
     {

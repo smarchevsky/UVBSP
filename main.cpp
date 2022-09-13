@@ -4,7 +4,7 @@
 #include <iostream>
 #include <math.h>
 #include <sstream>
-#include <uvsplit.h>
+#include <uvbsp.h>
 #include <window.h>
 
 #define LOG(x) std::cout << x << std::endl
@@ -13,9 +13,9 @@ const std::string projectDir(PROJECT_DIR);
 
 //////////////////////////////////////////////////
 
-class UVSplitActionHistory {
+class UVBSPActionHistory {
 public:
-    UVSplitActionHistory(UVSplit& uvSplit)
+    UVBSPActionHistory(UVBSP& uvSplit)
         : m_uvSplit(uvSplit)
     {
     }
@@ -49,7 +49,7 @@ public:
 private:
     std::vector<UVSplitAction> m_drawHistory;
     int m_currentIndex {};
-    UVSplit& m_uvSplit;
+    UVBSP& m_uvSplit;
 };
 
 int main(int argc, char** argv)
@@ -95,8 +95,8 @@ int main(int argc, char** argv)
             window.addOffset(toFloat(-currentDelta) * window.getScale());
         });
 
-    UVSplit uvSplit(textureSize);
-    UVSplitActionHistory splitActions(uvSplit);
+    UVBSP uvSplit(textureSize);
+    UVBSPActionHistory splitActions(uvSplit);
 
     ushort colorIndex = 0;
 
@@ -153,23 +153,23 @@ int main(int argc, char** argv)
     window.setAnyKeyEvent([&](KeyWithModifier key) {
         if (isReadyToExport) {
             std::string shaderText;
-            UVSplit::ShaderType shaderExportType;
+            UVBSP::ShaderType shaderExportType;
             switch (key.key) {
             case sf::Keyboard::G:
-                shaderExportType = UVSplit::ShaderType::GLSL;
+                shaderExportType = UVBSP::ShaderType::GLSL;
                 break;
             case sf::Keyboard::H:
-                shaderExportType = UVSplit::ShaderType::HLSL;
+                shaderExportType = UVBSP::ShaderType::HLSL;
                 break;
             case sf::Keyboard::U:
-                shaderExportType = UVSplit::ShaderType::UnrealCustomNode;
+                shaderExportType = UVBSP::ShaderType::UnrealCustomNode;
                 break;
             default: {
                 return;
             }
             }
             shaderText = uvSplit.generateShader(shaderExportType,
-                                    UVSplit::ExportArrayFormat::SingleFloatCoordAsUint)
+                                    UVBSP::ExportArrayFormat::SingleFloatCoordAsUint)
                              .str();
             std::cout << shaderText << std::endl;
             sf::Clipboard::setString(shaderText);

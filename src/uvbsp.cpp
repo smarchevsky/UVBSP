@@ -2,10 +2,10 @@
 #include <SFML/Graphics/Shader.hpp>
 #include <fstream>
 #include <sstream>
-#include <uvsplit.h>
+#include <uvbsp.h>
 
-static Vec4 packNodeToShader(BSPNode node, UVSplit::ExportArrayFormat format, std::stringstream* outStream = nullptr);
-void UVSplit::addSplit(UVSplitAction split)
+static Vec4 packNodeToShader(BSPNode node, UVBSP::ExportArrayFormat format, std::stringstream* outStream = nullptr);
+void UVBSP::addSplit(UVSplitAction split)
 {
     if (!m_initialSet) {
         m_nodes[0] = BSPNode(split.pos, split.dir, split.c0, split.c1);
@@ -33,7 +33,7 @@ void UVSplit::addSplit(UVSplitAction split)
     }
 }
 
-void UVSplit::updateUniforms(sf::Shader& shader)
+void UVBSP::updateUniforms(sf::Shader& shader)
 {
     m_packedStructs.resize(m_nodes.size());
     for (int i = 0; i < m_nodes.size(); ++i) {
@@ -42,7 +42,7 @@ void UVSplit::updateUniforms(sf::Shader& shader)
     shader.setUniformArray("nodes", m_packedStructs.data(), m_packedStructs.size());
 }
 
-bool UVSplit::readFromFile(const std::string& path)
+bool UVBSP::readFromFile(const std::string& path)
 {
     std::ifstream myfile(path);
     std::string baseString((std::istreambuf_iterator<char>(myfile)), std::istreambuf_iterator<char>());
@@ -61,7 +61,7 @@ bool UVSplit::readFromFile(const std::string& path)
     // std::cout << str.size() << std::endl;
 }
 
-void UVSplit::writeToFile(const std::string& path)
+void UVBSP::writeToFile(const std::string& path)
 {
     size_t arraySize = m_nodes.size() * sizeof(BSPNode);
     const uint8_t* data = (uint8_t*)(void*)m_nodes.data();
@@ -71,7 +71,7 @@ void UVSplit::writeToFile(const std::string& path)
     }
 }
 
-void UVSplit::reset()
+void UVBSP::reset()
 {
     m_nodes.clear();
     m_nodes.push_back({ vec2(0.5f, 0.5f), vec2(1, 1), 0, 0 });
@@ -80,7 +80,7 @@ void UVSplit::reset()
     m_initialSet = false;
 }
 
-std::string UVSplit::printNodes()
+std::string UVBSP::printNodes()
 {
     std::string result;
     for (int i = 0; i < m_nodes.size(); ++i) {
@@ -92,7 +92,7 @@ std::string UVSplit::printNodes()
     return result;
 }
 
-static Vec4 packNodeToShader(BSPNode node, UVSplit::ExportArrayFormat format, std::stringstream* outStream)
+static Vec4 packNodeToShader(BSPNode node, UVBSP::ExportArrayFormat format, std::stringstream* outStream)
 {
     constexpr float threshold = 1.f / (1 << 24); // vertical line
     if (abs(node.dir.y) < threshold)
@@ -106,7 +106,7 @@ static Vec4 packNodeToShader(BSPNode node, UVSplit::ExportArrayFormat format, st
     uint leftRight = (node.left << 16) | node.right & 0xffff;
 
     switch (format) {
-    case UVSplit::ExportArrayFormat::Float: {
+    case UVBSP::ExportArrayFormat::Float: {
         if (outStream) {
             (*outStream)
                 << "VEC4("
@@ -119,7 +119,7 @@ static Vec4 packNodeToShader(BSPNode node, UVSplit::ExportArrayFormat format, st
                 << std::to_string(node.right) << "u))";
         }
     } break;
-    case UVSplit::ExportArrayFormat::FloatAsUint: {
+    case UVBSP::ExportArrayFormat::FloatAsUint: {
         if (outStream) {
             uint posXbits = reinterpret_cast<uint&>(node.pos.x);
             uint posYbits = reinterpret_cast<uint&>(node.pos.y);
@@ -136,7 +136,7 @@ static Vec4 packNodeToShader(BSPNode node, UVSplit::ExportArrayFormat format, st
                 << std::to_string(node.right) << "u))";
         }
     } break;
-    case UVSplit::ExportArrayFormat::SingleFloatCoordAsUint: {
+    case UVBSP::ExportArrayFormat::SingleFloatCoordAsUint: {
         if (outStream) {
 
             float normalizedPos = node.pos.x + node.pos.y / tangent;
@@ -157,7 +157,7 @@ static Vec4 packNodeToShader(BSPNode node, UVSplit::ExportArrayFormat format, st
     return Vec4(node.pos.x, node.pos.y, tangent, reinterpret_cast<float&>(leftRight));
 }
 
-std::stringstream UVSplit::generateShader(ShaderType shaderType, ExportArrayFormat arrayType) const
+std::stringstream UVBSP::generateShader(ShaderType shaderType, ExportArrayFormat arrayType) const
 {
     bool isHLSL = shaderType != ShaderType::GLSL;
     const size_t arraySize = m_nodes.size();
@@ -173,12 +173,12 @@ std::stringstream UVSplit::generateShader(ShaderType shaderType, ExportArrayForm
     if (isHLSL) {
         switch (arrayType) {
 
-        case UVSplit::ExportArrayFormat::Float: // float type must be deprecated...
+        case UVBSP::ExportArrayFormat::Float: // float type must be deprecated...
             shaderText << "#define REINTERPRET_TO_FLOAT(x) asfloat(~(x))\n"
                        << "#define REINTERPRET_TO_UINT(x) ~asuint(x)\n";
             break;
-        case UVSplit::ExportArrayFormat::FloatAsUint:
-        case UVSplit::ExportArrayFormat::SingleFloatCoordAsUint:
+        case UVBSP::ExportArrayFormat::FloatAsUint:
+        case UVBSP::ExportArrayFormat::SingleFloatCoordAsUint:
             shaderText << "#define REINTERPRET_TO_FLOAT(x) asfloat(x)\n"
                        << "#define REINTERPRET_TO_UINT(x) asuint(x)\n";
             break;
@@ -190,13 +190,13 @@ std::stringstream UVSplit::generateShader(ShaderType shaderType, ExportArrayForm
     }
 
     switch (arrayType) {
-    case UVSplit::ExportArrayFormat::Float:
+    case UVBSP::ExportArrayFormat::Float:
         shaderText << "VEC4 nodes[" << arraySize << "] = " << (isHLSL ? "{\n" : "VEC4[](\n");
         break;
-    case UVSplit::ExportArrayFormat::FloatAsUint:
+    case UVBSP::ExportArrayFormat::FloatAsUint:
         shaderText << "UVEC4 nodes[" << arraySize << "] = " << (isHLSL ? "{\n" : "UVEC4[](\n");
         break;
-    case UVSplit::ExportArrayFormat::SingleFloatCoordAsUint:
+    case UVBSP::ExportArrayFormat::SingleFloatCoordAsUint:
         shaderText << "UVEC3 nodes[" << arraySize << "] = " << (isHLSL ? "{\n" : "UVEC3[](\n");
         break;
     }
@@ -216,17 +216,17 @@ std::stringstream UVSplit::generateShader(ShaderType shaderType, ExportArrayForm
            "  for(int iteration = 0; iteration < "
         << getMaxDepth(0) << "; ++iteration) {\n";
     switch (arrayType) {
-    case UVSplit::ExportArrayFormat::Float: {
+    case UVBSP::ExportArrayFormat::Float: {
         shaderText << "    VEC2 pos = nodes[currentIndex].xy;\n"
                       "    VEC2 tangent = VEC2(nodes[currentIndex].z, 1.0);\n"
                       "    uint leftRight = REINTERPRET_TO_UINT(nodes[currentIndex].w); // reinterpret   \n";
     } break;
-    case UVSplit::ExportArrayFormat::FloatAsUint: {
+    case UVBSP::ExportArrayFormat::FloatAsUint: {
         shaderText << "    VEC2 pos = REINTERPRET_TO_FLOAT(nodes[currentIndex].xy);\n"
                       "    VEC2 tangent = VEC2(REINTERPRET_TO_FLOAT(nodes[currentIndex].z), 1.0);\n"
                       "    uint leftRight = nodes[currentIndex].w; // reinterpret   \n";
     } break;
-    case UVSplit::ExportArrayFormat::SingleFloatCoordAsUint: {
+    case UVBSP::ExportArrayFormat::SingleFloatCoordAsUint: {
         shaderText << "    VEC2 pos = VEC2(REINTERPRET_TO_FLOAT(nodes[currentIndex].x), 0.0);\n"
                       "    VEC2 tangent = VEC2(REINTERPRET_TO_FLOAT(nodes[currentIndex].y), 1.0);\n"
                       "    uint leftRight = nodes[currentIndex].z; // reinterpret   \n";
