@@ -95,7 +95,7 @@ int main(int argc, char** argv)
             window.addOffset(toFloat(-currentDelta) * window.getScale());
         });
 
-    UVBSP uvSplit(textureSize);
+    UVBSP uvSplit;
     UVBSPActionHistory splitActions(uvSplit);
 
     ushort colorIndex = 0;
@@ -106,7 +106,7 @@ int main(int argc, char** argv)
 
     auto updateWindowTitle = [&]() {
         window.setTitle("Node count: " + std::to_string(uvSplit.getNumNodes())
-            + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth()));
+            + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth(0)));
         LOG(uvSplit.printNodes());
     };
 
@@ -168,9 +168,7 @@ int main(int argc, char** argv)
                 return;
             }
             }
-            shaderText = uvSplit.generateShader(shaderExportType,
-                                    UVBSP::ExportArrayFormat::SingleFloatCoordAsUint)
-                             .str();
+            shaderText = uvSplit.generateShader(shaderExportType).str();
             std::cout << shaderText << std::endl;
             sf::Clipboard::setString(shaderText);
 

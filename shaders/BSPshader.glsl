@@ -13,43 +13,41 @@ vec3 rainbow(float val){
     return result * result;
 }
 
+#define MAX_DEPTH 64
 uniform vec4 nodes[512];
 
-/// Node indices are represented as unsigned short 16 bit integers
-/// 0 ... 32767 are color indices
-/// 32768 ... 65536 are node indices
-/// BSPNode constructor set color indices by default
+/// Node or color indices are represented in nodes.zw
+/// node(less than 0) or color(greater equal 0)
 
-#define MAX_DEPTH 64
+int traverseTree(vec2 uv){
+  int currentIndex = 0;
 
-uint traverseTree(vec2 uv){
-  const uint nodeIndexThreshold = uint(1 << 15);
-  uint currentIndex = uint(0);
+  //float distance = 99999999.f;
 
   for(int iteration = 0; iteration < MAX_DEPTH; ++iteration) {
-    vec2 pos = nodes[currentIndex].xy;
-    vec2 tangent = vec2(nodes[currentIndex].z, 1.0);
+    vec2 pos = vec2(nodes[currentIndex].x, 0.0);
+    vec2 dir = vec2(nodes[currentIndex].y, 1.0);
+    //distance = min(distance, abs(dot(pos - uv, normalize(dir))));
+    bool isLeftPixel = dot(pos - uv, dir) < 0.0;
 
-    uint leftRight = floatBitsToUint(nodes[currentIndex].w); // reinterpret   
-    bool isLeftPixel = dot(pos - uv, tangent) < 0.0;
-
-    uint indexOfProperSide = isLeftPixel ? leftRight >> 16 : (leftRight & 0x0000ffffu);
+    int indexOfProperSide = floatBitsToInt(isLeftPixel ?
+              nodes[currentIndex].z : nodes[currentIndex].w);
     
-    if(indexOfProperSide >= nodeIndexThreshold) {
-      currentIndex = indexOfProperSide - nodeIndexThreshold;
+    if(indexOfProperSide < 0) {
+      currentIndex = -indexOfProperSide;
     } else {
+      //return distance;
       return indexOfProperSide;
     }
   }
-  return uint(0);
+  return 0;
 }
-
-
 
 void main() {
   vec2 uv = gl_TexCoord[0].xy;
-  uint index = traverseTree(uv); vec3 hint = rainbow(0.5 * float(index));
+  float index = traverseTree(uv);
+  vec3 hint = rainbow(0.5 * float(index));
   vec3 textureColor = texture2D(texture, uv).rgb;
-  gl_FragColor = vec4(mix(textureColor, hint, vec3(0.99)), 1.0);
-  // gl_FragColor = vec4(hint, 1.0);
+  gl_FragColor = vec4(mix(textureColor, hint, vec3(0.4)), 1.0);
+  //gl_FragColor = vec4(vec3(index * 6), 1.0);
 }

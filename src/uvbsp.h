@@ -11,16 +11,6 @@
 
 typedef sf::Glsl::Vec4 Vec4;
 
-constexpr ushort nodeIndexThreshold = 1 << 15;
-/////////////////////////////////////////////
-/// Node indices are represented as unsigned short 16 bit integers
-/// 0 ... 32767 are color indices
-/// 32768 ... 65536 are node indices
-/// BSPNode constructor set color indices by default
-
-// static const std::string lang_vec4_str[2] = { "vec4", "float4" };
-// static const std::string lang_asFloat[2] = { "intBitsToFloat", "asfloat" };
-
 struct BSPNode {
     BSPNode() = default;
     BSPNode(vec2 p, vec2 d, ushort l, ushort r)
@@ -32,7 +22,7 @@ struct BSPNode {
     }
 
     vec2 pos, dir;
-    ushort left, right;
+    int left, right;
 };
 
 struct UVSplitAction {
@@ -44,15 +34,14 @@ struct UVSplitAction {
     {
     }
     vec2 pos, dir;
-    ushort c0, c1;
+    int c0, c1;
 };
 
 class UVBSP {
 public:
-    // clang-format off
-    enum class ShaderType { GLSL, HLSL, UnrealCustomNode };
-    enum class ExportArrayFormat { Float, FloatAsUint, SingleFloatCoordAsUint };
-    // clang-format on
+    enum class ShaderType { GLSL,
+        HLSL,
+        UnrealCustomNode };
 
 private:
     std::vector<BSPNode> m_nodes;
@@ -62,17 +51,17 @@ private:
     bool m_initialSet {};
 
 public:
-    static bool isNodeLink(ushort index) { return index >= nodeIndexThreshold; }
+    // static bool isNodeLink(ushort index) { return index < 0; }
 
-    UVBSP(const vec2& imageSize) { reset(); }
+    UVBSP() { reset(); }
 
-    ushort getMaxDepth(ushort nodeIndex = 0) const
+    int getMaxDepth(int nodeIndex) const
     {
-        ushort left {}, right {};
-        if (isNodeLink(m_nodes[nodeIndex].left))
-            left = getMaxDepth(m_nodes[nodeIndex].left - nodeIndexThreshold);
-        if (isNodeLink(m_nodes[nodeIndex].right))
-            right = getMaxDepth(m_nodes[nodeIndex].right - nodeIndexThreshold);
+        int left {}, right {};
+        if (m_nodes[-nodeIndex].left < 0)
+            left = getMaxDepth(m_nodes[-nodeIndex].left);
+        if (m_nodes[-nodeIndex].right < 0)
+            right = getMaxDepth(m_nodes[-nodeIndex].right);
         return std::max(left, right) + 1;
     }
 
@@ -97,16 +86,14 @@ public:
 
     // STRINGS ! //
 public:
-    static std::string printIndex(ushort index)
+    static std::string printIndex(int index)
     {
-        return (index < nodeIndexThreshold)
-            ? "color " + std::to_string(index)
-            : "next " + std::to_string(index - nodeIndexThreshold);
+        return (index < 0) ? "next " + std::to_string(-index) : "color " + std::to_string(index);
     }
 
     std::string printNodes();
 
-    std::stringstream generateShader(ShaderType shaderType, ExportArrayFormat arrayType) const;
+    std::stringstream generateShader(ShaderType shaderType) const;
 };
 
 #endif // UVSPLIT_H
