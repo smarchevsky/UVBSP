@@ -5,6 +5,11 @@
 #include <functional>
 #include <unordered_map>
 #include <vec2.h>
+#include <iostream>
+
+#ifndef LOG
+#define LOG(x) std::cout << x << std::endl
+#endif
 
 enum class ModifierKey : uint8_t {
     None = 0,
@@ -66,7 +71,7 @@ class MouseEventData {
     MouseDownEvent m_mouseDownEvent {};
     ivec2 m_startMouseDragPos {};
     DragState m_dragState = DragState::MouseUp;
-    // int m_dragIteration = -1;
+    bool m_buttomPressed = false;
 
 public:
     void runMouseMoveEvents(ivec2 currentPos, ivec2 delta)
@@ -88,9 +93,11 @@ public:
     void mouseDown(ivec2 mousePos, bool down)
     {
         if (down) {
+            m_buttomPressed = true;
             m_startMouseDragPos = mousePos;
             m_dragState = DragState::StartDrag;
         } else {
+            m_buttomPressed = false;
             m_dragState = DragState::MouseUp;
         }
         if (m_mouseDownEvent)
@@ -110,98 +117,15 @@ public:
         , m_windowSize(getSize())
         , m_viewOffset(toFloat(m_windowSize) / 2)
     {
+        init();
     }
-    void processEvents()
-    {
-        sf::Event event;
-        while (pollEvent(event)) {
-            // bool escPressed = event.KeyPressed && event.key.code == sf::Keyboard::Escape;
-            switch (event.type) {
-            case sf::Event::Closed:
-                exit();
-                break;
-            case sf::Event::Resized: {
-                m_windowSize = toUInt(event.size);
-                applyScaleAndOffset();
-            } break;
-            case sf::Event::LostFocus:
-                break;
-            case sf::Event::GainedFocus:
-                break;
-            case sf::Event::TextEntered:
-                break;
-            case sf::Event::KeyPressed: {
-                KeyWithModifier currentKey(event.key.code,
-                    makeModifier(
-                        event.key.alt,
-                        event.key.control,
-                        event.key.shift,
-                        event.key.system),
-                    true);
+    ~Window();
 
-                if (m_anyKeyDownEvent)
-                    m_anyKeyDownEvent(currentKey);
-
-                auto keyEventIter = m_keyMap.find(currentKey);
-                if (keyEventIter != m_keyMap.end())
-                    keyEventIter->second();
-
-            } break;
-            case sf::Event::KeyReleased: {
-                KeyWithModifier currentKey(event.key.code,
-                    makeModifier(
-                        event.key.alt,
-                        event.key.control,
-                        event.key.shift,
-                        event.key.system),
-                    false);
-
-                if (m_anyKeyUpEvent)
-                    m_anyKeyUpEvent(currentKey);
-
-                auto keyEventIter = m_keyMap.find(currentKey);
-                if (keyEventIter != m_keyMap.end())
-                    keyEventIter->second();
-
-            } break;
-            case sf::Event::MouseWheelScrolled:
-                if (m_mouseScrollEvent) {
-                    m_mouseScrollEvent(event.mouseWheelScroll.delta, m_mousePos);
-                }
-                break;
-            case sf::Event::MouseButtonPressed: {
-                auto mouseEventData = getMouseEventData(event.mouseButton.button);
-                if (mouseEventData) {
-                    mouseEventData->mouseDown(m_mousePos, true);
-                }
-            } break;
-            case sf::Event::MouseButtonReleased: {
-                auto mouseEventData = getMouseEventData(event.mouseButton.button);
-                if (mouseEventData) {
-                    mouseEventData->mouseDown(m_mousePos, false);
-                }
-            } break;
-            case sf::Event::MouseMoved: {
-                ivec2 prevPos = m_mousePos;
-                m_mousePos = toInt(event.mouseMove);
-                m_mouseEventLMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
-                m_mouseEventMMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
-                m_mouseEventRMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
-            } break;
-            case sf::Event::MouseEntered:
-                break;
-            case sf::Event::MouseLeft:
-                break;
-            default: {
-            }
-            }
-        }
-    }
+    void processEvents();
 
     void setScale(float scale) { m_scale = scale, applyScaleAndOffset(); }
     void addScale(float scaleFactor) { m_scale *= scaleFactor, applyScaleAndOffset(); }
     float getScale() const { return m_scale; }
-
     void addOffset(vec2 offset) { m_viewOffset += offset, applyScaleAndOffset(); }
     void setOffset(vec2 offset) { m_viewOffset = offset; }
     vec2 getOffset() const { return m_viewOffset; }
@@ -211,46 +135,22 @@ public:
         setView(view);
     }
 
-    void setMouseDragEvent(sf::Mouse::Button button, MouseDragEvent event)
-    {
-        auto mouseEventData = getMouseEventData(button);
-        if (mouseEventData) {
-            mouseEventData->setMouseDragEvent(event);
-        }
-    }
+    void setMouseDragEvent(sf::Mouse::Button button, MouseDragEvent event);
+    void setMouseMoveEvent(sf::Mouse::Button button, MouseMoveEvent event);
+    void setMouseDownEvent(sf::Mouse::Button button, MouseDownEvent event);
+    void setMouseScrollEvent(MouseScrollEvent event) { m_mouseScrollEvent = event; }
 
-    void setMouseMoveEvent(sf::Mouse::Button button, MouseMoveEvent event)
-    {
-        auto mouseEventData = getMouseEventData(button);
-        if (mouseEventData) {
-            mouseEventData->setMouseMoveEvent(event);
-        }
-    }
-
-    void setMouseDownEvent(sf::Mouse::Button button, MouseDownEvent event)
-    {
-        auto mouseEventData = getMouseEventData(button);
-        if (mouseEventData) {
-            mouseEventData->setMouseDownEvent(event);
-        }
-    }
-
-    void setScrollEvent(MouseScrollEvent event) { m_mouseScrollEvent = event; }
-
-    void addKeyDownEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent event) { m_keyMap.insert({ KeyWithModifier(key, modifier, true), event }); }
-    void addKeyUpEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent event) { m_keyMap.insert({ KeyWithModifier(key, modifier, false), event }); }
+    void addKeyDownEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent event);
+    void addKeyUpEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent event);
 
     void setAnyKeyDownEvent(AnyKeyEvent event) { m_anyKeyDownEvent = event; }
     void setAnyKeyUpEvent(AnyKeyEvent event) { m_anyKeyUpEvent = event; }
+    void display();
 
-    void exit()
-    {
-        if (m_preCloseEvent)
-            m_preCloseEvent();
-        close();
-    }
+    void exit();
 
 private:
+    void init();
     MouseEventData* getMouseEventData(sf::Mouse::Button button)
     {
         switch (button) {
@@ -277,6 +177,8 @@ private:
     uvec2 m_windowSize {};
     float m_scale = 1.f;
     vec2 m_viewOffset {};
+
+    sf::Clock m_deltaClock;
 };
 
 #endif // WINDOW_H

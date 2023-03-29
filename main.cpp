@@ -1,5 +1,7 @@
 
+#include "imgui/imgui.h"
 #include <SFML/Window/Clipboard.hpp>
+
 #include <assert.h>
 #include <iostream>
 #include <math.h>
@@ -7,7 +9,9 @@
 #include <uvbsp.h>
 #include <window.h>
 
+#ifndef LOG
 #define LOG(x) std::cout << x << std::endl
+#endif
 const vec2 defaultWindowSize(1024, 768);
 const std::string projectDir(PROJECT_DIR);
 
@@ -81,7 +85,7 @@ int main(int argc, char** argv)
     vec2 textureSize = toFloat(texture.getSize());
 
     // zoom canvas on scroll
-    window.setScrollEvent([&](float diff, ivec2 mousePos) {
+    window.setMouseScrollEvent([&](float diff, ivec2 mousePos) {
         float scaleFactor = pow(1.1f, -diff);
         window.addScale(scaleFactor);
         vec2 mouseWorld = window.mapPixelToCoords(mousePos);
@@ -200,13 +204,16 @@ int main(int argc, char** argv)
     sf::Sprite background(texture);
     uvSplit.updateUniforms(textureShader);
     while (window.isOpen()) {
-
         window.processEvents();
         window.clear(sf::Color(50, 50, 50));
 
         sf::Shader::bind(&textureShader);
         window.draw(background);
-        sf::Shader::bind(nullptr);
+        // sf::Shader::bind(nullptr);
+
+        ImGui::Begin("Hello, world!");
+        ImGui::Button("Look at this pretty button");
+        ImGui::End();
 
         window.display();
     }
