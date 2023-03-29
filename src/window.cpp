@@ -3,21 +3,25 @@
 #include "imgui/imgui-SFML.h"
 #include "imgui/imgui.h"
 
+uint32_t Window::s_instanceCounter = 0;
 void Window::init()
 {
-    bool imguiSuccessfullyInit = ImGui::SFML::Init(*this);
-    imguiSuccessfullyInit = imguiSuccessfullyInit;
+    bool s = ImGui::SFML::Init(*this);
+    s = s;
+    s_instanceCounter++;
 }
 
 Window::~Window()
 {
-    ImGui::SFML::Shutdown();
+    s_instanceCounter--;
+    if (s_instanceCounter == 0)
+        ImGui::SFML::Shutdown();
 }
 
 void Window::processEvents()
 {
     sf::Event event;
-
+    ImGui::SFML::SetCurrentWindow(*this);
     while (pollEvent(event)) {
         ImGui::SFML::ProcessEvent(event);
         ImGuiIO& io = ImGui::GetIO();
@@ -33,6 +37,7 @@ void Window::processEvents()
         case sf::Event::LostFocus:
             break;
         case sf::Event::GainedFocus:
+            io.WantCaptureMouse = true;
             break;
         case sf::Event::TextEntered:
             break;
@@ -108,7 +113,6 @@ void Window::processEvents()
         }
         }
     }
-    ImGui::SFML::Update(*this, m_deltaClock.restart());
 }
 
 void Window::setMouseDragEvent(sf::Mouse::Button button, MouseDragEvent event)
@@ -145,10 +149,14 @@ void Window::addKeyUpEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent
     m_keyMap.insert({ KeyWithModifier(key, modifier, false), event });
 }
 
-void Window::display()
+void Window::display(ImGuiContextFunctions imguiFunctions)
 {
+    if (imguiFunctions) {
+        ImGui::SFML::Update(*this, m_deltaClock.restart());
+        imguiFunctions();
+        ImGui::SFML::Render(*this);
+    }
 
-    ImGui::SFML::Render(*this);
     sf::Window::display();
 }
 

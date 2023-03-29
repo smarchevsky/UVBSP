@@ -64,6 +64,7 @@ typedef std::function<void(float scrollDelta, ivec2 mousePos)> MouseScrollEvent;
 typedef std::function<void(ivec2 mousePos, bool mouseDown)> MouseDownEvent;
 typedef std::function<void()> KeyEvent;
 typedef std::function<void(KeyWithModifier)> AnyKeyEvent;
+typedef std::function<void()> ImGuiContextFunctions;
 
 class MouseEventData {
     MouseMoveEvent m_mouseMoveEvent {};
@@ -145,7 +146,7 @@ public:
 
     void setAnyKeyDownEvent(AnyKeyEvent event) { m_anyKeyDownEvent = event; }
     void setAnyKeyUpEvent(AnyKeyEvent event) { m_anyKeyUpEvent = event; }
-    void display();
+    void display(ImGuiContextFunctions functions = nullptr);
 
     void exit();
 
@@ -179,6 +180,7 @@ private:
     vec2 m_viewOffset {};
 
     sf::Clock m_deltaClock;
+    static uint32_t s_instanceCounter;
 };
 
 #endif // WINDOW_H

@@ -59,6 +59,7 @@ private:
 int main(int argc, char** argv)
 {
     Window window(sf::VideoMode(defaultWindowSize.x, defaultWindowSize.y), "UVBSP");
+    // Window window2(sf::VideoMode(defaultWindowSize.x, defaultWindowSize.y), "UVBSP");
 
     window.addKeyDownEvent(sf::Keyboard::Escape, ModifierKey::None, [&window]() { window.exit(); });
     window.setVerticalSyncEnabled(true);
@@ -205,17 +206,32 @@ int main(int argc, char** argv)
     uvSplit.updateUniforms(textureShader);
     while (window.isOpen()) {
         window.processEvents();
+
         window.clear(sf::Color(50, 50, 50));
 
         sf::Shader::bind(&textureShader);
         window.draw(background);
         // sf::Shader::bind(nullptr);
 
-        ImGui::Begin("Hello, world!");
-        ImGui::Button("Look at this pretty button");
-        ImGui::End();
+        auto imguiFunctions = []() {
+            float rotation = 0.0;
+            float translation[] = { 0.0, 0.0 };
+            float color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-        window.display();
+            ImGui::Begin("Triangle Position/Color");
+            ImGui::SliderFloat("rotation", &rotation, 0, 2 * M_PI);
+            ImGui::SliderFloat2("position", translation, -1.0, 1.0);
+            ImGui::ColorEdit3("color", color);
+
+            ImGui::End();
+        };
+        window.display(imguiFunctions);
+
+        //        if (window2.isOpen()) {
+        //            window2.processEvents();
+        //            window2.clear(sf::Color(50, 50, 50));
+        //            window2.display(imguiFunctions);
+        //        }
     }
 
     return 0;
