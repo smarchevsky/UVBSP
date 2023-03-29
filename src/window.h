@@ -5,29 +5,32 @@
 #include <functional>
 #include <unordered_map>
 #include <vec2.h>
-enum class ModifierKey : uint8_t { None = 0,
+
+enum class ModifierKey : uint8_t {
+    None = 0,
     Alt = 1,
     Control = 1 << 1,
     Shift = 1 << 2,
-    System = 1 << 3 };
-static ModifierKey operator|(ModifierKey a, ModifierKey b) { return ModifierKey((int)a | (int)b); }
+    System = 1 << 3
+};
 
+static ModifierKey operator|(ModifierKey a, ModifierKey b) { return ModifierKey((int)a | (int)b); }
+static ModifierKey makeModifier(bool alt = false, bool ctrl = false, bool shift = false, bool system = false)
+{
+    return ModifierKey(alt | ctrl << 1 | shift << 2 | system << 3);
+}
 struct KeyWithModifier {
-    KeyWithModifier(sf::Keyboard::Key key, ModifierKey mod)
+    KeyWithModifier(sf::Keyboard::Key key, ModifierKey mod, bool down)
         : key(key)
         , mod(mod)
+        , down(down)
     {
     }
-    KeyWithModifier(sf::Keyboard::Key key,
-        bool alt = false, bool ctrl = false, bool shift = false, bool system = false)
-        : key(key)
-        , mod(ModifierKey(alt | ctrl << 1 | shift << 2 | system << 3))
-    {
-    }
-    bool operator==(const KeyWithModifier& rhs) const { return key == rhs.key && mod == rhs.mod; }
+    bool operator==(const KeyWithModifier& rhs) const { return key == rhs.key && mod == rhs.mod && down == rhs.down; }
 
     sf::Keyboard::Key key = sf::Keyboard::Key::Unknown;
     ModifierKey mod = ModifierKey::None;
+    bool down = true;
 };
 
 namespace std {
@@ -35,7 +38,10 @@ template <>
 struct hash<KeyWithModifier> {
     std::size_t operator()(const KeyWithModifier& k) const
     {
-        uint64_t keyAction64 = (uint64_t)k.key | (uint64_t)((uint64_t)k.mod << 32);
+        uint64_t keyAction64
+            = (uint64_t)k.key << 32
+            | (uint64_t)((uint64_t)k.mod << 16)
+            | (uint64_t)((uint64_t)k.down);
         return std::hash<uint64_t>()(static_cast<uint64_t>(keyAction64));
     }
 };
@@ -51,7 +57,7 @@ typedef std::function<void(ivec2 currentPos, ivec2 delta)> MouseMoveEvent;
 typedef std::function<void(ivec2 startPos, ivec2 currentPos, ivec2 delta, DragState)> MouseDragEvent;
 typedef std::function<void(float scrollDelta, ivec2 mousePos)> MouseScrollEvent;
 typedef std::function<void(ivec2 mousePos, bool mouseDown)> MouseDownEvent;
-typedef std::function<void()> KeyDownEvent;
+typedef std::function<void()> KeyEvent;
 typedef std::function<void(KeyWithModifier)> AnyKeyEvent;
 
 class MouseEventData {
@@ -126,19 +132,38 @@ public:
                 break;
             case sf::Event::KeyPressed: {
                 KeyWithModifier currentKey(event.key.code,
-                    event.key.alt, event.key.control, event.key.shift, event.key.system);
+                    makeModifier(
+                        event.key.alt,
+                        event.key.control,
+                        event.key.shift,
+                        event.key.system),
+                    true);
 
-                if (m_anyKeyEvent)
-                    m_anyKeyEvent(currentKey);
+                if (m_anyKeyDownEvent)
+                    m_anyKeyDownEvent(currentKey);
 
                 auto keyEventIter = m_keyMap.find(currentKey);
-                if (keyEventIter != m_keyMap.end()) {
+                if (keyEventIter != m_keyMap.end())
                     keyEventIter->second();
-                }
 
             } break;
-            case sf::Event::KeyReleased:
-                break;
+            case sf::Event::KeyReleased: {
+                KeyWithModifier currentKey(event.key.code,
+                    makeModifier(
+                        event.key.alt,
+                        event.key.control,
+                        event.key.shift,
+                        event.key.system),
+                    false);
+
+                if (m_anyKeyUpEvent)
+                    m_anyKeyUpEvent(currentKey);
+
+                auto keyEventIter = m_keyMap.find(currentKey);
+                if (keyEventIter != m_keyMap.end())
+                    keyEventIter->second();
+
+            } break;
             case sf::Event::MouseWheelScrolled:
                 if (m_mouseScrollEvent) {
                     m_mouseScrollEvent(event.mouseWheelScroll.delta, m_mousePos);
@@ -212,12 +237,12 @@ public:
 
     void setScrollEvent(MouseScrollEvent event) { m_mouseScrollEvent = event; }
 
-    void addKeyEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyDownEvent event)
-    {
-        m_keyMap.insert({ KeyWithModifier(key, modifier), event });
-    }
+    void addKeyDownEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent event) { m_keyMap.insert({ KeyWithModifier(key, modifier, true), event }); }
+    void addKeyUpEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent event) { m_keyMap.insert({ KeyWithModifier(key, modifier, false), event }); }
 
-    void setAnyKeyEvent(AnyKeyEvent event) { m_anyKeyEvent = event; }
+    void setAnyKeyDownEvent(AnyKeyEvent event) { m_anyKeyDownEvent = event; }
+    void setAnyKeyUpEvent(AnyKeyEvent event) { m_anyKeyUpEvent = event; }
+
     void exit()
     {
         if (m_preCloseEvent)
@@ -245,8 +270,8 @@ private:
 
     MouseEventData m_mouseEventLMB {}, m_mouseEventMMB {}, m_mouseEventRMB {};
     MouseScrollEvent m_mouseScrollEvent {};
-    std::unordered_map<KeyWithModifier, KeyDownEvent> m_keyMap;
-    AnyKeyEvent m_anyKeyEvent;
+    std::unordered_map<KeyWithModifier, KeyEvent> m_keyMap;
+    AnyKeyEvent m_anyKeyDownEvent, m_anyKeyUpEvent;
 
     ivec2 m_mousePos {};
     uvec2 m_windowSize {};

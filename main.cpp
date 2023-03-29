@@ -56,7 +56,7 @@ int main(int argc, char** argv)
 {
     Window window(sf::VideoMode(defaultWindowSize.x, defaultWindowSize.y), "UVBSP");
 
-    window.addKeyEvent(sf::Keyboard::Escape, ModifierKey::None, [&window]() { window.exit(); });
+    window.addKeyDownEvent(sf::Keyboard::Escape, ModifierKey::None, [&window]() { window.exit(); });
     window.setVerticalSyncEnabled(true);
 
     sf::Texture texture;
@@ -124,19 +124,19 @@ int main(int argc, char** argv)
 
     // projectDir
 
-    window.addKeyEvent(sf::Keyboard::S, ModifierKey::Control, [&]() { // undo
+    window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control, [&]() { // undo
         std::string fileDir = projectDir + "/test.uvbsp";
         // uvSplit.writeToFile(fileDir);
         window.setTitle("Saved to: " + fileDir);
     });
 
-    window.addKeyEvent(sf::Keyboard::O, ModifierKey::Control, [&]() { // undo
+    window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control, [&]() { // undo
         std::string fileDir = projectDir + "/test.uvbsp";
         // uvSplit.readFromFile(fileDir);
         uvSplit.updateUniforms(textureShader);
     });
 
-    window.addKeyEvent(sf::Keyboard::Z, ModifierKey::Control, [&]() { // undo
+    window.addKeyDownEvent(sf::Keyboard::Z, ModifierKey::Control, [&]() { // undo
         if (splitActions.undo())
             colorIndex -= 2;
         uvSplit.updateUniforms(textureShader);
@@ -144,12 +144,12 @@ int main(int argc, char** argv)
 
     });
     bool isReadyToExport {};
-    window.addKeyEvent(sf::Keyboard::E, ModifierKey::Control | ModifierKey::Shift, [&]() {
+    window.addKeyDownEvent(sf::Keyboard::E, ModifierKey::Control | ModifierKey::Shift, [&]() {
         isReadyToExport = true;
         window.setTitle("Export shader to: G-glsl, H-hlsl, U-unreal");
     });
 
-    window.setAnyKeyEvent([&](KeyWithModifier key) {
+    window.setAnyKeyDownEvent([&](KeyWithModifier key) {
         if (isReadyToExport) {
             std::string shaderText;
             UVBSP::ShaderType shaderExportType;
