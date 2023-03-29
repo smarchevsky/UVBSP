@@ -10,7 +10,7 @@ enum class ModifierKey : uint8_t { None = 0,
     Control = 1 << 1,
     Shift = 1 << 2,
     System = 1 << 3 };
-ModifierKey operator|(ModifierKey a, ModifierKey b) { return ModifierKey((int)a | (int)b); }
+static ModifierKey operator|(ModifierKey a, ModifierKey b) { return ModifierKey((int)a | (int)b); }
 
 struct KeyWithModifier {
     KeyWithModifier(sf::Keyboard::Key key, ModifierKey mod)
@@ -41,24 +41,59 @@ struct hash<KeyWithModifier> {
 };
 }
 
-// ivec2 startPos, ivec2 currentPos, ivec2 currentDelta
-typedef std::function<void(ivec2, ivec2, ivec2)> MouseDragEvent;
-// float scrollDelta, ivec2 mousePos
-typedef std::function<void(float, ivec2)> MouseScrollEvent;
-// ivec2 pos, bool mouseDown
-typedef std::function<void(ivec2, bool)> MouseClickEvent;
+enum class DragState {
+    MouseUp,
+    StartDrag,
+    ContinueDrag
+};
 
+typedef std::function<void(ivec2 currentPos, ivec2 delta)> MouseMoveEvent;
+typedef std::function<void(ivec2 startPos, ivec2 currentPos, ivec2 delta, DragState)> MouseDragEvent;
+typedef std::function<void(float scrollDelta, ivec2 mousePos)> MouseScrollEvent;
+typedef std::function<void(ivec2 mousePos, bool mouseDown)> MouseDownEvent;
 typedef std::function<void()> KeyDownEvent;
 typedef std::function<void(KeyWithModifier)> AnyKeyEvent;
 
-struct DragEvent {
-    MouseDragEvent event {};
-    ivec2 startMousePos {};
-    bool pressed {};
+class MouseEventData {
+    MouseMoveEvent m_mouseMoveEvent {};
+    MouseDragEvent m_mouseDragEvent {};
+    MouseDownEvent m_mouseDownEvent {};
+    ivec2 m_startMouseDragPos {};
+    DragState m_dragState = DragState::MouseUp;
+    // int m_dragIteration = -1;
 
 public:
-    operator bool() { return pressed && event; }
+    void runMouseMoveEvents(ivec2 currentPos, ivec2 delta)
+    {
+        if (m_mouseMoveEvent) {
+            m_mouseMoveEvent(currentPos, delta);
+        }
+        if (m_mouseDragEvent) {
+            m_mouseDragEvent(m_startMouseDragPos, currentPos, delta, m_dragState);
+        }
+        if (m_dragState == DragState::StartDrag)
+            m_dragState = DragState::ContinueDrag;
+    }
+
+    void setMouseMoveEvent(const MouseMoveEvent& event) { m_mouseMoveEvent = event; }
+    void setMouseDragEvent(const MouseDragEvent& event) { m_mouseDragEvent = event; }
+    void setMouseDownEvent(const MouseDownEvent& event) { m_mouseDownEvent = event; }
+
+    void mouseDown(ivec2 mousePos, bool down)
+    {
+        if (down) {
+            m_startMouseDragPos = mousePos;
+            m_dragState = DragState::StartDrag;
+        } else {
+            m_dragState = DragState::MouseUp;
+        }
+        if (m_mouseDownEvent)
+            m_mouseDownEvent(mousePos, down);
+    }
+
+    // operator bool() { return !!m_event; }
 };
+
 // kinda window wrapper, you can wrap SDL window the same way
 
 class Window : public sf::RenderWindow {
@@ -109,61 +144,24 @@ public:
                     m_mouseScrollEvent(event.mouseWheelScroll.delta, m_mousePos);
                 }
                 break;
-            case sf::Event::MouseButtonPressed:
-                switch (event.mouseButton.button) {
-                case sf::Mouse::Left:
-                    m_dragEventLMB.pressed = true;
-                    m_dragEventLMB.startMousePos = m_mousePos;
-                    if (m_clickEventLMB)
-                        m_clickEventLMB(m_mousePos, true);
-                    break;
-                case sf::Mouse::Middle:
-                    m_dragEventMMB.pressed = true;
-                    m_dragEventMMB.startMousePos = m_mousePos;
-                    if (m_clickEventMMB)
-                        m_clickEventMMB(m_mousePos, true);
-                    break;
-                case sf::Mouse::Right:
-                    m_dragEventRMB.pressed = true;
-                    m_dragEventRMB.startMousePos = m_mousePos;
-                    if (m_clickEventRMB)
-                        m_clickEventRMB(m_mousePos, true);
-                    break;
-                default: {
+            case sf::Event::MouseButtonPressed: {
+                auto mouseEventData = getMouseEventData(event.mouseButton.button);
+                if (mouseEventData) {
+                    mouseEventData->mouseDown(m_mousePos, true);
                 }
+            } break;
+            case sf::Event::MouseButtonReleased: {
+                auto mouseEventData = getMouseEventData(event.mouseButton.button);
+                if (mouseEventData) {
+                    mouseEventData->mouseDown(m_mousePos, false);
                 }
-                break;
-            case sf::Event::MouseButtonReleased:
-                switch (event.mouseButton.button) {
-                case sf::Mouse::Left:
-                    m_dragEventLMB.pressed = false;
-                    if (m_clickEventLMB)
-                        m_clickEventLMB(m_mousePos, false);
-                    break;
-                case sf::Mouse::Middle:
-                    m_dragEventMMB.pressed = false;
-                    if (m_clickEventMMB)
-                        m_clickEventMMB(m_mousePos, false);
-                    break;
-                case sf::Mouse::Right:
-                    m_dragEventRMB.pressed = false;
-                    if (m_clickEventRMB)
-                        m_clickEventRMB(m_mousePos, false);
-                    break;
-                default: {
-                }
-                }
-                break;
+            } break;
             case sf::Event::MouseMoved: {
                 ivec2 prevPos = m_mousePos;
                 m_mousePos = toInt(event.mouseMove);
-                if (m_dragEventLMB)
-                    m_dragEventLMB.event(m_dragEventLMB.startMousePos, m_mousePos, m_mousePos - prevPos);
-                if (m_dragEventMMB)
-                    m_dragEventMMB.event(m_dragEventMMB.startMousePos, m_mousePos, m_mousePos - prevPos);
-                if (m_dragEventRMB)
-                    m_dragEventRMB.event(m_dragEventRMB.startMousePos, m_mousePos, m_mousePos - prevPos);
-
+                m_mouseEventLMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
+                m_mouseEventMMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
+                m_mouseEventRMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
             } break;
             case sf::Event::MouseEntered:
                 break;
@@ -190,35 +188,25 @@ public:
 
     void setMouseDragEvent(sf::Mouse::Button button, MouseDragEvent event)
     {
-        switch (button) {
-        case sf::Mouse::Left:
-            m_dragEventLMB.event = event;
-            break;
-        case sf::Mouse::Middle:
-            m_dragEventMMB.event = event;
-            break;
-        case sf::Mouse::Right:
-            m_dragEventRMB.event = event;
-            break;
-        default: {
-        }
+        auto mouseEventData = getMouseEventData(button);
+        if (mouseEventData) {
+            mouseEventData->setMouseDragEvent(event);
         }
     }
 
-    void setMouseClickEvent(sf::Mouse::Button button, MouseClickEvent event)
+    void setMouseMoveEvent(sf::Mouse::Button button, MouseMoveEvent event)
     {
-        switch (button) {
-        case sf::Mouse::Left:
-            m_clickEventLMB = event;
-            break;
-        case sf::Mouse::Middle:
-            m_clickEventMMB = event;
-            break;
-        case sf::Mouse::Right:
-            m_clickEventRMB = event;
-            break;
-        default: {
+        auto mouseEventData = getMouseEventData(button);
+        if (mouseEventData) {
+            mouseEventData->setMouseMoveEvent(event);
         }
+    }
+
+    void setMouseDownEvent(sf::Mouse::Button button, MouseDownEvent event)
+    {
+        auto mouseEventData = getMouseEventData(button);
+        if (mouseEventData) {
+            mouseEventData->setMouseDownEvent(event);
         }
     }
 
@@ -238,9 +226,24 @@ public:
     }
 
 private:
+    MouseEventData* getMouseEventData(sf::Mouse::Button button)
+    {
+        switch (button) {
+        case sf::Mouse::Left:
+            return &m_mouseEventLMB;
+        case sf::Mouse::Middle:
+            return &m_mouseEventMMB;
+        case sf::Mouse::Right:
+            return &m_mouseEventRMB;
+        default: {
+            return nullptr;
+        }
+        }
+    }
+
     std::function<void()> m_preCloseEvent {};
-    DragEvent m_dragEventLMB {}, m_dragEventMMB {}, m_dragEventRMB {};
-    MouseClickEvent m_clickEventLMB {}, m_clickEventMMB {}, m_clickEventRMB {};
+
+    MouseEventData m_mouseEventLMB {}, m_mouseEventMMB {}, m_mouseEventRMB {};
     MouseScrollEvent m_mouseScrollEvent {};
     std::unordered_map<KeyWithModifier, KeyDownEvent> m_keyMap;
     AnyKeyEvent m_anyKeyEvent;

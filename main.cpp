@@ -91,8 +91,9 @@ int main(int argc, char** argv)
 
     // drag canvas on MMB
     window.setMouseDragEvent(sf::Mouse::Middle,
-        [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
-            window.addOffset(toFloat(-currentDelta) * window.getScale());
+        [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta, DragState dragState) {
+            if (dragState != DragState::MouseUp)
+                window.addOffset(toFloat(-currentDelta) * window.getScale());
         });
 
     UVBSP uvSplit;
@@ -110,10 +111,8 @@ int main(int argc, char** argv)
         LOG(uvSplit.printNodes());
     };
 
-    bool isMouseDragging = false;
-    window.setMouseClickEvent(sf::Mouse::Left, [&](ivec2 pos, bool mouseDown) {
+    window.setMouseDownEvent(sf::Mouse::Left, [&](ivec2 pos, bool mouseDown) {
         if (!mouseDown) {
-            isMouseDragging = false;
             const BSPNode* lastNode = uvSplit.getLastNode();
             if (lastNode) {
                 UVSplitAction split(lastNode->pos, lastNode->dir, lastNode->left, lastNode->right);
@@ -127,13 +126,13 @@ int main(int argc, char** argv)
 
     window.addKeyEvent(sf::Keyboard::S, ModifierKey::Control, [&]() { // undo
         std::string fileDir = projectDir + "/test.uvbsp";
-        uvSplit.writeToFile(fileDir);
+        // uvSplit.writeToFile(fileDir);
         window.setTitle("Saved to: " + fileDir);
     });
 
     window.addKeyEvent(sf::Keyboard::O, ModifierKey::Control, [&]() { // undo
         std::string fileDir = projectDir + "/test.uvbsp";
-        uvSplit.readFromFile(fileDir);
+        // uvSplit.readFromFile(fileDir);
         uvSplit.updateUniforms(textureShader);
     });
 
@@ -178,22 +177,21 @@ int main(int argc, char** argv)
     });
 
     window.setMouseDragEvent(sf::Mouse::Left,
-        [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta) {
+        [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta, DragState dragState) {
             vec2 uvCurrentDelta = window.mapPixelToCoords(currentDelta) / textureSize;
             vec2 uvStartPos = window.mapPixelToCoords(startPos) / textureSize;
             vec2 uvCurrentPos = window.mapPixelToCoords(currentPos) / textureSize;
             vec2 uvCurrentDir = normalized(uvCurrentPos - uvStartPos);
             vec2 uvCurrentPerp = perp(uvCurrentDir);
 
-            if (!isMouseDragging) { // create new split
+            if (dragState == DragState::StartDrag) { // create new split
 
                 UVSplitAction split = { uvStartPos, uvCurrentPerp, colorIndex, ushort(colorIndex + 1) };
                 uvSplit.addSplit(split);
                 uvSplit.updateUniforms(textureShader);
 
                 colorIndex += 2;
-                isMouseDragging = true;
-            } else { // rotate new split
+            } else if (dragState == DragState::ContinueDrag) { // rotate new split
                 uvSplit.adjustSplit(uvCurrentPerp);
                 uvSplit.updateUniforms(textureShader);
             }
