@@ -22,6 +22,7 @@ void Window::processEvents()
 {
     sf::Event event;
     ImGui::SFML::SetCurrentWindow(*this);
+
     while (pollEvent(event)) {
         ImGui::SFML::ProcessEvent(event);
         ImGuiIO& io = ImGui::GetIO();
@@ -33,49 +34,56 @@ void Window::processEvents()
         case sf::Event::Resized: {
             m_windowSize = toUInt(event.size);
             applyScaleAndOffset();
+            dirtyLevel = 2;
         } break;
         case sf::Event::LostFocus:
             break;
         case sf::Event::GainedFocus:
             io.WantCaptureMouse = true;
+
             break;
         case sf::Event::TextEntered:
             break;
-        case sf::Event::KeyPressed: {
-            KeyWithModifier currentKey(event.key.code,
-                makeModifier(
-                    event.key.alt,
-                    event.key.control,
-                    event.key.shift,
-                    event.key.system),
-                true);
+        case sf::Event::KeyPressed:
+            if (!io.WantCaptureKeyboard) {
+                KeyWithModifier currentKey(event.key.code,
+                    makeModifier(
+                        event.key.alt,
+                        event.key.control,
+                        event.key.shift,
+                        event.key.system),
+                    true);
 
-            if (m_anyKeyDownEvent)
-                m_anyKeyDownEvent(currentKey);
+                if (m_anyKeyDownReason) {
+                    const auto& foundEvent = m_anyKeyDownEvents.find(*m_anyKeyDownReason);
+                    if (foundEvent != m_anyKeyDownEvents.end()) {
+                        foundEvent->second(currentKey);
+                    }
+                    m_anyKeyDownReason = {};
+                } else {
+                    auto keyEventIter = m_keyMap.find(currentKey);
+                    if (keyEventIter != m_keyMap.end())
+                        keyEventIter->second();
+                }
+            }
+            break;
+        case sf::Event::KeyReleased:
+            if (!io.WantCaptureKeyboard) {
+                KeyWithModifier currentKey(event.key.code,
+                    makeModifier(
+                        event.key.alt,
+                        event.key.control,
+                        event.key.shift,
+                        event.key.system),
+                    false);
 
-            auto keyEventIter = m_keyMap.find(currentKey);
-            if (keyEventIter != m_keyMap.end())
-                keyEventIter->second();
-
-        } break;
-        case sf::Event::KeyReleased: {
-            KeyWithModifier currentKey(event.key.code,
-                makeModifier(
-                    event.key.alt,
-                    event.key.control,
-                    event.key.shift,
-                    event.key.system),
-                false);
-
-            if (m_anyKeyUpEvent)
-                m_anyKeyUpEvent(currentKey);
-
-            auto keyEventIter = m_keyMap.find(currentKey);
-            if (keyEventIter != m_keyMap.end())
-                keyEventIter->second();
-
-        } break;
+                auto keyEventIter = m_keyMap.find(currentKey);
+                if (keyEventIter != m_keyMap.end())
+                    keyEventIter->second();
+            }
+            break;
         case sf::Event::MouseWheelScrolled:
+
             if (!io.WantCaptureMouse) {
                 if (m_mouseScrollEvent) {
                     m_mouseScrollEvent(event.mouseWheelScroll.delta, m_mousePos);
@@ -89,6 +97,7 @@ void Window::processEvents()
                     mouseEventData->mouseDown(m_mousePos, true);
                 }
             }
+
         } break;
         case sf::Event::MouseButtonReleased: {
             if (!io.WantCaptureMouse) {
@@ -99,11 +108,13 @@ void Window::processEvents()
             }
         } break;
         case sf::Event::MouseMoved: {
+
             ivec2 prevPos = m_mousePos;
             m_mousePos = toInt(event.mouseMove);
             m_mouseEventLMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
             m_mouseEventMMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
             m_mouseEventRMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
+
         } break;
         case sf::Event::MouseEntered:
             break;
@@ -112,6 +123,8 @@ void Window::processEvents()
         default: {
         }
         }
+        if (dirtyLevel < 1)
+            dirtyLevel = 1;
     }
 }
 
@@ -149,14 +162,20 @@ void Window::addKeyUpEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent
     m_keyMap.insert({ KeyWithModifier(key, modifier, false), event });
 }
 
-void Window::display(ImGuiContextFunctions imguiFunctions)
+void Window::drawImGuiContext(ImGuiContextFunctions imguiFunctions)
 {
-    if (imguiFunctions) {
-        ImGui::SFML::Update(*this, m_deltaClock.restart());
-        imguiFunctions();
-        ImGui::SFML::Render(*this);
-    }
+    ImGui::SFML::Update(*this, m_deltaClock.restart());
+    imguiFunctions();
+    ImGui::SFML::Render(*this);
+}
 
+void Window::display()
+{
+    if (dirtyLevel > 0) {
+        dirtyLevel--;
+    } else if (dirtyLevel < 0) {
+        dirtyLevel = 0;
+    }
     sf::Window::display();
 }
 

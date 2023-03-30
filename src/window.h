@@ -3,9 +3,10 @@
 
 #include <SFML/Graphics.hpp>
 #include <functional>
+#include <iostream>
+#include <optional>
 #include <unordered_map>
 #include <vec2.h>
-#include <iostream>
 
 #ifndef LOG
 #define LOG(x) std::cout << x << std::endl
@@ -65,6 +66,7 @@ typedef std::function<void(ivec2 mousePos, bool mouseDown)> MouseDownEvent;
 typedef std::function<void()> KeyEvent;
 typedef std::function<void(KeyWithModifier)> AnyKeyEvent;
 typedef std::function<void()> ImGuiContextFunctions;
+typedef std::function<void()> WindowResizeEvent;
 
 class MouseEventData {
     MouseMoveEvent m_mouseMoveEvent {};
@@ -80,7 +82,7 @@ public:
         if (m_mouseMoveEvent) {
             m_mouseMoveEvent(currentPos, delta);
         }
-        if (m_mouseDragEvent) {
+        if (m_mouseDragEvent && m_buttomPressed) {
             m_mouseDragEvent(m_startMouseDragPos, currentPos, delta, m_dragState);
         }
         if (m_dragState == DragState::StartDrag)
@@ -144,10 +146,12 @@ public:
     void addKeyDownEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent event);
     void addKeyUpEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent event);
 
-    void setAnyKeyDownEvent(AnyKeyEvent event) { m_anyKeyDownEvent = event; }
-    void setAnyKeyUpEvent(AnyKeyEvent event) { m_anyKeyUpEvent = event; }
-    void display(ImGuiContextFunctions functions = nullptr);
+    void setAnyKeyDownOnceEvent(const std::string& reason, AnyKeyEvent event) { m_anyKeyDownEvents[reason] = event; }
+    void setAnyKeyReason(const std::string& reason) { m_anyKeyDownReason = reason; }
 
+    void drawImGuiContext(ImGuiContextFunctions imguiFunctions);
+    void display();
+    bool windowMayBeDirty() { return !!dirtyLevel; }
     void exit();
 
 private:
@@ -172,7 +176,11 @@ private:
     MouseEventData m_mouseEventLMB {}, m_mouseEventMMB {}, m_mouseEventRMB {};
     MouseScrollEvent m_mouseScrollEvent {};
     std::unordered_map<KeyWithModifier, KeyEvent> m_keyMap;
-    AnyKeyEvent m_anyKeyDownEvent, m_anyKeyUpEvent;
+
+    // allow any key event once
+    std::unordered_map<std::string, AnyKeyEvent> m_anyKeyDownEvents;
+    std::optional<std::string> m_anyKeyDownReason;
+    int dirtyLevel = 5;
 
     ivec2 m_mousePos {};
     uvec2 m_windowSize {};

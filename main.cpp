@@ -97,8 +97,7 @@ int main(int argc, char** argv)
     // drag canvas on MMB
     window.setMouseDragEvent(sf::Mouse::Middle,
         [&](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta, DragState dragState) {
-            if (dragState != DragState::MouseUp)
-                window.addOffset(toFloat(-currentDelta) * window.getScale());
+            window.addOffset(toFloat(-currentDelta) * window.getScale());
         });
 
     UVBSP uvSplit;
@@ -111,9 +110,9 @@ int main(int argc, char** argv)
     textureShader.setUniform("texture", texture);
 
     auto updateWindowTitle = [&]() {
-        window.setTitle("Node count: " + std::to_string(uvSplit.getNumNodes())
-            + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth(0)));
-        LOG(uvSplit.printNodes());
+        // window.setTitle("Node count: " + std::to_string(uvSplit.getNumNodes())
+        //     + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth(0)));
+        // LOG(uvSplit.printNodes());
     };
 
     window.setMouseDownEvent(sf::Mouse::Left, [&](ivec2 pos, bool mouseDown) {
@@ -129,13 +128,13 @@ int main(int argc, char** argv)
 
     // projectDir
 
-    window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control, [&]() { // undo
+    window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control, [&]() { // save
         std::string fileDir = projectDir + "/test.uvbsp";
         // uvSplit.writeToFile(fileDir);
         window.setTitle("Saved to: " + fileDir);
     });
 
-    window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control, [&]() { // undo
+    window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control, [&]() { // open
         std::string fileDir = projectDir + "/test.uvbsp";
         // uvSplit.readFromFile(fileDir);
         uvSplit.updateUniforms(textureShader);
@@ -148,37 +147,34 @@ int main(int argc, char** argv)
         updateWindowTitle();
 
     });
-    bool isReadyToExport {};
+
     window.addKeyDownEvent(sf::Keyboard::E, ModifierKey::Control | ModifierKey::Shift, [&]() {
-        isReadyToExport = true;
+        window.setAnyKeyReason("export file type");
         window.setTitle("Export shader to: G-glsl, H-hlsl, U-unreal");
     });
 
-    window.setAnyKeyDownEvent([&](KeyWithModifier key) {
-        if (isReadyToExport) {
-            std::string shaderText;
-            UVBSP::ShaderType shaderExportType;
-            switch (key.key) {
-            case sf::Keyboard::G:
-                shaderExportType = UVBSP::ShaderType::GLSL;
-                break;
-            case sf::Keyboard::H:
-                shaderExportType = UVBSP::ShaderType::HLSL;
-                break;
-            case sf::Keyboard::U:
-                shaderExportType = UVBSP::ShaderType::UnrealCustomNode;
-                break;
-            default: {
-                return;
-            }
-            }
-            shaderText = uvSplit.generateShader(shaderExportType).str();
-            std::cout << shaderText << std::endl;
-            sf::Clipboard::setString(shaderText);
-
-            window.setTitle("Shader code copied to clipboard, you're welcome :)");
+    window.setAnyKeyDownOnceEvent("export file type", [&](KeyWithModifier key) {
+        std::string shaderText;
+        UVBSP::ShaderType shaderExportType;
+        switch (key.key) {
+        case sf::Keyboard::G:
+            shaderExportType = UVBSP::ShaderType::GLSL;
+            break;
+        case sf::Keyboard::H:
+            shaderExportType = UVBSP::ShaderType::HLSL;
+            break;
+        case sf::Keyboard::U:
+            shaderExportType = UVBSP::ShaderType::UnrealCustomNode;
+            break;
+        default: {
+            return;
         }
-        isReadyToExport = false;
+        }
+        shaderText = uvSplit.generateShader(shaderExportType).str();
+        std::cout << shaderText << std::endl;
+        sf::Clipboard::setString(shaderText);
+
+        window.setTitle("Shader code copied to clipboard, you're welcome :)");
     });
 
     window.setMouseDragEvent(sf::Mouse::Left,
@@ -204,35 +200,84 @@ int main(int argc, char** argv)
 
     sf::Sprite background(texture);
     uvSplit.updateUniforms(textureShader);
+
+    auto imguiFunctions = []() {
+        auto& io = ImGui::GetIO();
+        ImGuiWindowFlags window_flags = 0;
+        int frameIndex = 0;
+        // window_flags |= ImGuiWindowFlags_NoTitleBar;
+        // window_flags |= ImGuiWindowFlags_NoScrollbar;
+        // window_flags |= ImGuiWindowFlags_MenuBar;
+        // window_flags |= ImGuiWindowFlags_NoMove;
+        // window_flags |= ImGuiWindowFlags_NoResize;
+        // window_flags |= ImGuiWindowFlags_NoCollapse;
+
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+        static int item_current_idx = 0;
+        // ImGui::SFML::;
+
+        // auto windowSize = ImGui::GetWindowSize();
+        // ImGui::SetNextWindowPos({ io.DisplaySize.x - windowSize.x, 0 }, 0, { 0.f, 0.f });
+        // ImGui::SetNextWindowSizeConstraints({ 30, 30 }, { 300, 300 });
+
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.WindowPadding = ImVec2(15, 15);
+        style.WindowRounding = 10.0f;
+        style.DisplaySafeAreaPadding = ImVec2(100, 100);
+
+        ImGui::Begin("Triangle Position/Color", nullptr, window_flags);
+
+        const bool nav_keyboard_active = (io.ConfigFlags & ImGuiConfigFlags_NavEnableKeyboard) != 0;
+
+        ImGui::Text("io.NavActive: %d, io.NavVisible: %d, item_current_idx  %d",
+            io.NavActive, io.NavVisible, item_current_idx);
+
+        if (ImGui::TreeNode("List boxes")) {
+            const char* items[] = {
+                "AAAA", "BBBB", "CCCC", "DDDD",
+                "EEEE", "FFFF", "GGGG", "HHHH",
+                "IIII", "JJJJ", "KKKK", "LLLL",
+                "MMMM", "OOOO"
+            };
+
+            if (ImGui::BeginListBox("listbox 1")) {
+
+                for (int n = 0; n < IM_ARRAYSIZE(items); n++) {
+                    const bool is_selected = (item_current_idx == n);
+                    if (ImGui::Selectable(items[n], is_selected))
+                        item_current_idx = n;
+
+                    if (is_selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndListBox();
+            }
+
+            // Custom size: use all width, 5 items tall
+            ImGui::Text("Full-width:");
+
+            ImGui::TreePop();
+        }
+
+        ImGui::End();
+    };
+
+    window.setFramerateLimit(60);
     while (window.isOpen()) {
         window.processEvents();
+        window.setTitle(std::to_string(window.windowMayBeDirty()));
 
-        window.clear(sf::Color(50, 50, 50));
+        if (window.windowMayBeDirty()) {
+            window.clear(sf::Color(50, 50, 50));
+            sf::Shader::bind(&textureShader);
+            window.draw(background);
+            sf::Shader::bind(nullptr);
+            window.drawImGuiContext(imguiFunctions);
+        }
 
-        sf::Shader::bind(&textureShader);
-        window.draw(background);
-        // sf::Shader::bind(nullptr);
-
-        auto imguiFunctions = []() {
-            float rotation = 0.0;
-            float translation[] = { 0.0, 0.0 };
-            float color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-            ImGui::Begin("Triangle Position/Color");
-            ImGui::SliderFloat("rotation", &rotation, 0, 2 * M_PI);
-            ImGui::SliderFloat2("position", translation, -1.0, 1.0);
-            ImGui::ColorEdit3("color", color);
-
-            ImGui::End();
-        };
-        window.display(imguiFunctions);
-
-        //        if (window2.isOpen()) {
-        //            window2.processEvents();
-        //            window2.clear(sf::Color(50, 50, 50));
-        //            window2.display(imguiFunctions);
-        //        }
+        window.display();
     }
-
     return 0;
 }
