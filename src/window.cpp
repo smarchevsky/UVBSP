@@ -3,13 +3,20 @@
 #include "imgui/imgui-SFML.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_internal.h"
+#include <filesystem>
 
 #define MAX_DIRTY(x) m_showDisplayDirtyLevel = m_showDisplayDirtyLevel > x ? m_showDisplayDirtyLevel : x
-
+const std::filesystem::path projectDir(PROJECT_DIR);
 uint32_t Window::s_instanceCounter = 0;
 void Window::init()
 {
-    bool s = ImGui::SFML::Init(*this);
+    bool s = ImGui::SFML::Init(*this, false);
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->ClearFonts();
+    m_robotoFont = io.Fonts->AddFontFromFileTTF((projectDir / "imgui" / "fonts" / "Roboto.ttf").c_str(), 18.0f);
+
+    s |= ImGui::SFML::UpdateFontTexture();
+
     s = s;
     s_instanceCounter++;
 }
@@ -73,7 +80,9 @@ void Window::processEvents()
             break;
 
         case sf::Event::KeyPressed: {
-            if (!io.WantCaptureKeyboard) {
+            if (event.key.control && event.key.code == sf::Keyboard::Key::Q)
+                exit();
+            else if (!io.WantCaptureKeyboard) {
                 KeyWithModifier currentKey(event.key.code,
                     makeModifier(
                         event.key.alt,
@@ -114,28 +123,29 @@ void Window::processEvents()
 
         case sf::Event::MouseWheelScrolled: {
             if (!io.WantCaptureMouse) {
-                if (m_mouseScrollEvent) {
+                if (m_mouseScrollEvent)
                     m_mouseScrollEvent(event.mouseWheelScroll.delta, m_mousePos);
-                }
             }
         } break;
 
         case sf::Event::MouseButtonPressed: {
             if (!io.WantCaptureMouse) {
                 auto mouseEventData = getMouseEventData(event.mouseButton.button);
-                if (mouseEventData) {
+                if (mouseEventData)
                     mouseEventData->mouseDown(m_mousePos, true);
-                }
-            }
+            } else
+                MAX_DIRTY(10);
+
         } break;
 
         case sf::Event::MouseButtonReleased: {
             if (!io.WantCaptureMouse) {
                 auto mouseEventData = getMouseEventData(event.mouseButton.button);
-                if (mouseEventData) {
+                if (mouseEventData)
                     mouseEventData->mouseDown(m_mousePos, false);
-                }
-            }
+            } else
+                MAX_DIRTY(10);
+
         } break;
 
         case sf::Event::MouseMoved: {
@@ -196,7 +206,9 @@ void Window::addKeyUpEvent(sf::Keyboard::Key key, ModifierKey modifier, KeyEvent
 void Window::drawImGuiContext(ImGuiContextFunctions imguiFunctions)
 {
     ImGui::SFML::Update(*this, m_deltaClock.restart());
+    ImGui::PushFont(m_robotoFont);
     imguiFunctions();
+    ImGui::PopFont();
     ImGui::SFML::Render(*this);
 }
 

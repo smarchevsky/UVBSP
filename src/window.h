@@ -67,7 +67,6 @@ typedef std::function<void(uvec2 oldSize, uvec2 newSize)> ScreenResizeEvent;
 typedef std::function<void()> KeyEvent;
 typedef std::function<void(KeyWithModifier)> AnyKeyEvent;
 typedef std::function<void()> ImGuiContextFunctions;
-typedef std::function<void()> WindowResizeEvent;
 
 class MouseEventData {
     MouseMoveEvent m_mouseMoveEvent {};
@@ -153,6 +152,7 @@ public:
 
     void drawImGuiContext(ImGuiContextFunctions imguiFunctions);
     void display();
+
     bool windowMayBeDirty() { return !!m_showDisplayDirtyLevel; }
     void exit();
 
@@ -183,14 +183,16 @@ private:
 
     ScreenResizeEvent m_screenResizeEvent;
 
-    int m_showDisplayDirtyLevel = 5;
-
     ivec2 m_mousePos {};
     uvec2 m_windowSize {};
     float m_scale = 1.f;
     vec2 m_viewOffset {};
 
     sf::Clock m_deltaClock;
+
+    class ImFont* m_robotoFont;
+
+    int m_showDisplayDirtyLevel = 5;
     static uint32_t s_instanceCounter;
 };
 
