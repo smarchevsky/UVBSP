@@ -1,6 +1,9 @@
 
 #include "imgui/imgui.h"
 
+#include "imgui_utilites.h"
+#include "uvbsp.h"
+#include "window.h"
 #include <SFML/Window/Clipboard.hpp>
 
 #include <assert.h>
@@ -8,16 +11,12 @@
 #include <iostream>
 #include <math.h>
 #include <sstream>
-#include <uvbsp.h>
-#include <window.h>
-
-namespace fs = std::filesystem;
 
 #ifndef LOG
 #define LOG(x) std::cout << x << std::endl
 #endif
 const vec2 defaultWindowSize(1024, 768);
-const fs::path projectDir(PROJECT_DIR);
+const std::filesystem::path projectDir(PROJECT_DIR);
 
 //////////////////////////////////////////////////
 
@@ -110,13 +109,13 @@ int main(int argc, char** argv)
     ushort colorIndex = 0;
 
     sf::Shader textureShader;
-    textureShader.loadFromFile(projectDir / "shaders/BSPshader.glsl", sf::Shader::Type::Fragment);
+    textureShader.loadFromFile(projectDir / "shaders" / "BSPshader.glsl", sf::Shader::Type::Fragment);
     textureShader.setUniform("texture", texture);
 
     auto updateWindowTitle = [&]() {
-        // window.setTitle("Node count: " + std::to_string(uvSplit.getNumNodes())
-        //     + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth(0)));
-        // LOG(uvSplit.printNodes());
+        window.setTitle("Node count: " + std::to_string(uvSplit.getNumNodes())
+            + "   Tree depth: " + std::to_string(uvSplit.getMaxDepth(0)));
+        LOG(uvSplit.printNodes());
     };
 
     window.setMouseDownEvent(sf::Mouse::Left, [&](ivec2 pos, bool mouseDown) {
@@ -130,17 +129,15 @@ int main(int argc, char** argv)
         }
     });
 
-    // projectDir
-
     window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control, [&]() { // save
         std::string fileDir = projectDir / "test.uvbsp";
-        // uvSplit.writeToFile(fileDir);
+        uvSplit.writeToFile(fileDir);
         window.setTitle("Saved to: " + fileDir);
     });
 
     window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control, [&]() { // open
         std::string fileDir = projectDir / "test.uvbsp";
-        // uvSplit.readFromFile(fileDir);
+        uvSplit.readFromFile(fileDir);
         uvSplit.updateUniforms(textureShader);
     });
 
@@ -202,152 +199,29 @@ int main(int argc, char** argv)
             }
         });
 
+    FileSystemNavigator nav;
+
     sf::Sprite background(texture);
     uvSplit.updateUniforms(textureShader);
-
-    typedef ImU32 FileVisualColor;
-    class FileSystemNavigator {
-    public:
-        struct EntryNamePair {
-            fs::directory_entry entry;
-            std::string visibleName;
-            FileVisualColor color = IM_COL32(255, 255, 255, 255);
-        };
-
-        // std::string getName() {return entry.path().filename(); }
-        FileSystemNavigator()
-            : m_currentEntry(projectDir)
-        {
-            m_extensionColorMap.insert({ ".uvbsp", IM_COL32(255, 255, 25, 255) });
-        }
-        void retrievePathList() { retrievePathList(m_currentEntry); }
-        void retrievePathList(const fs::path& newPath)
-        {
-            fs::directory_entry newEntry(newPath);
-
-            if (newEntry.exists() && newEntry.is_directory()) {
-
-                decltype(m_entryList) newEntryList;
-                fs::path parentPath(newPath.parent_path());
-                fs::directory_entry parentEntry(parentPath);
-
-                if (parentEntry.exists())
-                    newEntryList.push_back({ parentEntry, std::string("..") });
-
-                for (const fs::directory_entry& entry : fs::directory_iterator(newEntry,
-                         fs::directory_options::skip_permission_denied)) {
-
-                    std::string newFileName = entry.path().filename();
-                    auto fileColorIterator = m_extensionColorMap.end();
-
-                    if (!entry.is_directory()) {
-                        fileColorIterator = m_extensionColorMap.find(entry.path().extension());
-                        newFileName = "  " + newFileName;
-                    }
-
-                    newEntryList.push_back({ entry, newFileName,
-                        (fileColorIterator == m_extensionColorMap.end())
-                            ? IM_COL32(255, 255, 255, 255)
-                            : fileColorIterator->second });
-                }
-                m_entryList = std::move(newEntryList);
-                m_currentEntry = newEntry.path();
-            }
-        }
-
-        const EntryNamePair* getEntryByIndex(int index) const
-        {
-            if (index >= 0 && index < m_entryList.size()) {
-                return &m_entryList[index];
-            }
-            return nullptr;
-        }
-
-        const auto& getEntryList() const
-        {
-            return m_entryList;
-        }
-
-    private:
-        fs::path m_currentEntry;
-        std::vector<EntryNamePair> m_entryList;
-        std::map<std::string, FileVisualColor> m_extensionColorMap;
-
-    } fsNavigator;
 
     uint64_t m_testCounter = 0;
     auto imguiFunctions = [&]() {
         auto& io = ImGui::GetIO();
-
-        ImGuiWindowFlags window_flags = 0;
-        int frameIndex = 0;
-        // window_flags |= ImGuiWindowFlags_NoTitleBar;
-        // window_flags |= ImGuiWindowFlags_NoScrollbar;
-        // window_flags |= ImGuiWindowFlags_MenuBar;
-        // window_flags |= ImGuiWindowFlags_NoMove;
-        // window_flags |= ImGuiWindowFlags_NoResize;
-        // window_flags |= ImGuiWindowFlags_NoCollapse;
-
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-        static int item_current_idx = 0;
+        ImGuiWindowFlags window_flags = 0;
 
         ImGuiStyle& style = ImGui::GetStyle();
         style.WindowPadding = ImVec2(15, 15);
         style.WindowRounding = 10.0f;
         style.DisplaySafeAreaPadding = ImVec2(300, 0);
-        // style.ScaleAllSizes(.5f);
 
         ImGui::Begin("Triangle Position/Color", nullptr, window_flags);
 
-        const bool nav_keyboard_active = (io.ConfigFlags & ImGuiConfigFlags_NavEnableKeyboard) != 0;
+        ImGui::Text("io.NavActive");
 
-        ImGui::Text("io.NavActive: %d, io.NavVisible: %d, item_current_idx  %d",
-            io.NavActive, io.NavVisible, item_current_idx);
-
-        static bool fileNavigatorListOpen = false;
-        if (ImGui::TreeNode("File navigator")) {
-            if (!fileNavigatorListOpen) {
-                fsNavigator.retrievePathList();
-                fileNavigatorListOpen = true;
-            }
-            static constexpr bool colorize = true;
-            if (ImGui::BeginListBox("###File navigator list", ImVec2(0, 500))) {
-                const auto& entryList = fsNavigator.getEntryList();
-                // ImGui::SetColorEditOptions();
-                for (int i = 0; i < entryList.size(); i++) {
-                    const bool is_selected = (item_current_idx == i);
-                    const std::string& filename = entryList[i].visibleName;
-                    const auto& currentEntry = entryList[i].entry;
-
-                    if (colorize)
-                        ImGui::PushStyleColor(ImGuiCol_Text, entryList[i].color);
-
-                    if (ImGui::Selectable(filename.c_str(), is_selected)) {
-                        item_current_idx = i;
-                        const auto* newEntry = fsNavigator.getEntryByIndex(item_current_idx);
-                        if (newEntry) {
-                            if (newEntry->entry.is_directory())
-                                fsNavigator.retrievePathList(newEntry->entry.path());
-                        }
-                    }
-
-                    if (colorize)
-                        ImGui::PopStyleColor();
-
-                    if (is_selected)
-                        ImGui::SetItemDefaultFocus();
-                }
-                ImGui::EndListBox();
-            }
-
-            // Custom size: use all width, 5 items tall
-            ImGui::Text("Full-width:");
-
-            ImGui::TreePop();
-        } else {
-            fileNavigatorListOpen = false;
-        }
+        ImGui_utilites::runTreeNavigator(nav);
+        //////////////////////////////////// NAVIGATOR
 
         ImGui::End();
     };
