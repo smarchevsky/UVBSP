@@ -63,6 +63,7 @@ typedef std::function<void(ivec2 currentPos, ivec2 delta)> MouseMoveEvent;
 typedef std::function<void(ivec2 startPos, ivec2 currentPos, ivec2 delta, DragState)> MouseDragEvent;
 typedef std::function<void(float scrollDelta, ivec2 mousePos)> MouseScrollEvent;
 typedef std::function<void(ivec2 mousePos, bool mouseDown)> MouseDownEvent;
+typedef std::function<void(uvec2 oldSize, uvec2 newSize)> ScreenResizeEvent;
 typedef std::function<void()> KeyEvent;
 typedef std::function<void(KeyWithModifier)> AnyKeyEvent;
 typedef std::function<void()> ImGuiContextFunctions;
@@ -148,10 +149,11 @@ public:
 
     void setAnyKeyDownOnceEvent(const std::string& reason, AnyKeyEvent event) { m_anyKeyDownEvents[reason] = event; }
     void setAnyKeyReason(const std::string& reason) { m_anyKeyDownReason = reason; }
+    void setScreenResizeEvent(ScreenResizeEvent screenResizeEvent) { m_screenResizeEvent = screenResizeEvent; }
 
     void drawImGuiContext(ImGuiContextFunctions imguiFunctions);
     void display();
-    bool windowMayBeDirty() { return !!dirtyLevel; }
+    bool windowMayBeDirty() { return !!m_showDisplayDirtyLevel; }
     void exit();
 
 private:
@@ -171,8 +173,6 @@ private:
         }
     }
 
-    std::function<void()> m_preCloseEvent {};
-
     MouseEventData m_mouseEventLMB {}, m_mouseEventMMB {}, m_mouseEventRMB {};
     MouseScrollEvent m_mouseScrollEvent {};
     std::unordered_map<KeyWithModifier, KeyEvent> m_keyMap;
@@ -180,7 +180,10 @@ private:
     // allow any key event once
     std::unordered_map<std::string, AnyKeyEvent> m_anyKeyDownEvents;
     std::optional<std::string> m_anyKeyDownReason;
-    int dirtyLevel = 5;
+
+    ScreenResizeEvent m_screenResizeEvent;
+
+    int m_showDisplayDirtyLevel = 5;
 
     ivec2 m_mousePos {};
     uvec2 m_windowSize {};

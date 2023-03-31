@@ -1,5 +1,6 @@
 
 #include "imgui/imgui.h"
+
 #include <SFML/Window/Clipboard.hpp>
 
 #include <assert.h>
@@ -198,11 +199,16 @@ int main(int argc, char** argv)
             }
         });
 
+    window.setScreenResizeEvent([&](uvec2 oldSize, uvec2 newSize) {
+
+    });
+
     sf::Sprite background(texture);
     uvSplit.updateUniforms(textureShader);
 
     auto imguiFunctions = []() {
         auto& io = ImGui::GetIO();
+
         ImGuiWindowFlags window_flags = 0;
         int frameIndex = 0;
         // window_flags |= ImGuiWindowFlags_NoTitleBar;
@@ -224,7 +230,7 @@ int main(int argc, char** argv)
         ImGuiStyle& style = ImGui::GetStyle();
         style.WindowPadding = ImVec2(15, 15);
         style.WindowRounding = 10.0f;
-        style.DisplaySafeAreaPadding = ImVec2(100, 100);
+        style.DisplaySafeAreaPadding = ImVec2(300, 0);
 
         ImGui::Begin("Triangle Position/Color", nullptr, window_flags);
 

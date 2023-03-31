@@ -11,6 +11,7 @@ typedef sf::Vector2i ivec2;
 inline vec2 toFloat(const ivec2& v) { return { (float)v.x, (float)v.y }; }
 inline vec2 toFloat(const uvec2& v) { return { (float)v.x, (float)v.y }; }
 inline ivec2 toInt(const vec2& v) { return { (int)v.x, (int)v.y }; }
+inline ivec2 toInt(const uvec2& v) { return { (int)v.x, (int)v.y }; }
 inline ivec2 toInt(const sf::Event::MouseMoveEvent& v) { return { v.x, v.y }; }
 inline uvec2 toUInt(const vec2& v) { return { (unsigned)std::max(v.x, 0.f), (unsigned)std::max(v.y, 0.f) }; }
 inline uvec2 toUInt(const sf::Event::SizeEvent& event) { return { event.width, event.height }; }
@@ -42,9 +43,9 @@ inline vec2 normalized(const vec2& v0)
     return v0;
 }
 
-inline void printVec(const vec2& v0){
+inline void printVec(const vec2& v0)
+{
     std::printf("Vec2: %.3f, %.3f", v0.x, v0.y);
-
 }
 
 #endif // VEC2_H

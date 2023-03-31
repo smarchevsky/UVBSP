@@ -2,6 +2,9 @@
 
 #include "imgui/imgui-SFML.h"
 #include "imgui/imgui.h"
+#include "imgui/imgui_internal.h"
+
+#define MAX_DIRTY(x) m_showDisplayDirtyLevel = m_showDisplayDirtyLevel > x ? m_showDisplayDirtyLevel : x
 
 uint32_t Window::s_instanceCounter = 0;
 void Window::init()
@@ -31,20 +34,45 @@ void Window::processEvents()
         case sf::Event::Closed:
             exit();
             break;
+
         case sf::Event::Resized: {
-            m_windowSize = toUInt(event.size);
+            auto oldScreenSize = m_windowSize;
+            const auto& newSize = toUInt(event.size);
+            m_windowSize = newSize;
             applyScaleAndOffset();
-            dirtyLevel = 2;
+
+            ivec2 offset = toInt(m_windowSize - oldScreenSize);
+
+            if (offset.x != 0) {
+                if (ImGuiContext* g = ImGui::GetCurrentContext()) {
+                    for (auto& w : g->Windows) {
+                        vec2 windowHalfSize(w->Size.x * 0.5f, w->Size.y * 0.5f);
+                        if (w->Pos.x + windowHalfSize.x > oldScreenSize.x / 2.f) {
+                            w->Pos.x += offset.x;
+                            if (w->Pos.x + windowHalfSize.x < newSize.x / 2.f)
+                                w->Pos.x = newSize.x / 2.f - windowHalfSize.x;
+                        }
+                    }
+                }
+            }
+
+            if (m_screenResizeEvent)
+                m_screenResizeEvent(oldScreenSize, m_windowSize);
+            MAX_DIRTY(2);
+
         } break;
+
         case sf::Event::LostFocus:
             break;
+
         case sf::Event::GainedFocus:
             io.WantCaptureMouse = true;
-
             break;
+
         case sf::Event::TextEntered:
             break;
-        case sf::Event::KeyPressed:
+
+        case sf::Event::KeyPressed: {
             if (!io.WantCaptureKeyboard) {
                 KeyWithModifier currentKey(event.key.code,
                     makeModifier(
@@ -66,8 +94,9 @@ void Window::processEvents()
                         keyEventIter->second();
                 }
             }
-            break;
-        case sf::Event::KeyReleased:
+        } break;
+
+        case sf::Event::KeyReleased: {
             if (!io.WantCaptureKeyboard) {
                 KeyWithModifier currentKey(event.key.code,
                     makeModifier(
@@ -81,15 +110,16 @@ void Window::processEvents()
                 if (keyEventIter != m_keyMap.end())
                     keyEventIter->second();
             }
-            break;
-        case sf::Event::MouseWheelScrolled:
+        } break;
 
+        case sf::Event::MouseWheelScrolled: {
             if (!io.WantCaptureMouse) {
                 if (m_mouseScrollEvent) {
                     m_mouseScrollEvent(event.mouseWheelScroll.delta, m_mousePos);
                 }
             }
-            break;
+        } break;
+
         case sf::Event::MouseButtonPressed: {
             if (!io.WantCaptureMouse) {
                 auto mouseEventData = getMouseEventData(event.mouseButton.button);
@@ -97,8 +127,8 @@ void Window::processEvents()
                     mouseEventData->mouseDown(m_mousePos, true);
                 }
             }
-
         } break;
+
         case sf::Event::MouseButtonReleased: {
             if (!io.WantCaptureMouse) {
                 auto mouseEventData = getMouseEventData(event.mouseButton.button);
@@ -107,24 +137,25 @@ void Window::processEvents()
                 }
             }
         } break;
-        case sf::Event::MouseMoved: {
 
+        case sf::Event::MouseMoved: {
             ivec2 prevPos = m_mousePos;
             m_mousePos = toInt(event.mouseMove);
             m_mouseEventLMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
             m_mouseEventMMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
             m_mouseEventRMB.runMouseMoveEvents(m_mousePos, m_mousePos - prevPos);
-
         } break;
+
         case sf::Event::MouseEntered:
             break;
+
         case sf::Event::MouseLeft:
             break;
+
         default: {
         }
         }
-        if (dirtyLevel < 1)
-            dirtyLevel = 1;
+        MAX_DIRTY(1);
     }
 }
 
@@ -171,17 +202,15 @@ void Window::drawImGuiContext(ImGuiContextFunctions imguiFunctions)
 
 void Window::display()
 {
-    if (dirtyLevel > 0) {
-        dirtyLevel--;
-    } else if (dirtyLevel < 0) {
-        dirtyLevel = 0;
+    if (m_showDisplayDirtyLevel > 0) {
+        m_showDisplayDirtyLevel--;
+    } else if (m_showDisplayDirtyLevel < 0) {
+        m_showDisplayDirtyLevel = 0;
     }
     sf::Window::display();
 }
 
 void Window::exit()
 {
-    if (m_preCloseEvent)
-        m_preCloseEvent();
     close();
 }
