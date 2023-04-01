@@ -121,6 +121,8 @@ public:
         , m_viewOffset(toFloat(m_windowSize) / 2)
     {
         init();
+        setVerticalSyncEnabled(true);
+        setFramerateLimit(100);
     }
     ~Window();
 

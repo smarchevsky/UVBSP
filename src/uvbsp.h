@@ -78,7 +78,11 @@ public:
     }
 
     std::string printNodes();
-
+    std::string getBasicInfo()
+    {
+        return "Node count: " + std::to_string(getNumNodes())
+            + "   Tree depth: " + std::to_string(getMaxDepth(0));
+    }
     std::stringstream generateShader(ShaderType shaderType) const;
 };
 
