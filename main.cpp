@@ -69,9 +69,9 @@ int main(int argc, char** argv)
 
     ushort colorIndex = 0;
 
-    sf::Shader textureShader;
-    textureShader.loadFromFile(projectDir / "shaders" / "BSPshader.glsl", sf::Shader::Type::Fragment);
-    textureShader.setUniform("texture", texture);
+    sf::Shader BSPShader;
+    BSPShader.loadFromFile(projectDir / "shaders" / "BSPshader.glsl", sf::Shader::Type::Fragment);
+    BSPShader.setUniform("texture", texture);
 
     auto updateWindowTitle = [&]() {
         window.setTitle("Node count: " + std::to_string(uvSplit.getNumNodes())
@@ -99,13 +99,13 @@ int main(int argc, char** argv)
     window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control, [&]() { // open
         std::string fileDir = projectDir / "test.uvbsp";
         uvSplit.readFromFile(fileDir);
-        uvSplit.updateUniforms(textureShader);
+        uvSplit.updateUniforms(BSPShader);
     });
 
     window.addKeyDownEvent(sf::Keyboard::Z, ModifierKey::Control, [&]() { // undo
         if (splitActions.undo())
             colorIndex -= 2;
-        uvSplit.updateUniforms(textureShader);
+        uvSplit.updateUniforms(BSPShader);
         updateWindowTitle();
 
     });
@@ -151,19 +151,19 @@ int main(int argc, char** argv)
 
                 UVBSPSplit split = { uvStartPos, uvCurrentPerp, colorIndex, ushort(colorIndex + 1) };
                 uvSplit.addSplit(split);
-                uvSplit.updateUniforms(textureShader);
+                uvSplit.updateUniforms(BSPShader);
 
                 colorIndex += 2;
             } else if (dragState == DragState::ContinueDrag) { // rotate new split
                 uvSplit.adjustSplit(uvCurrentPerp);
-                uvSplit.updateUniforms(textureShader);
+                uvSplit.updateUniforms(BSPShader);
             }
         });
 
     FileSystemNavigator nav;
 
     sf::Sprite background(texture);
-    uvSplit.updateUniforms(textureShader);
+    uvSplit.updateUniforms(BSPShader);
 
     uint64_t m_testCounter = 0;
     auto imguiFunctions = [&]() {
@@ -195,7 +195,7 @@ int main(int argc, char** argv)
 
         if (window.windowMayBeDirty()) {
             window.clear(sf::Color(50, 50, 50));
-            sf::Shader::bind(&textureShader);
+            sf::Shader::bind(&BSPShader);
             window.draw(background);
             sf::Shader::bind(nullptr);
             window.drawImGuiContext(imguiFunctions);
