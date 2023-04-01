@@ -3,8 +3,9 @@
 
 namespace fs = std::filesystem;
 
-FileSystemNavigator::FileSystemNavigator()
-    : m_currentEntry(PROJECT_DIR)
+FileSystemNavigator::FileSystemNavigator(const std::string& name)
+    : m_name(name)
+    , m_currentEntry(PROJECT_DIR)
 {
     addSupportedExtension(".uvbsp", nullptr, IM_COL32(255, 255, 25, 255));
 }
@@ -51,31 +52,33 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
 
 void ImGui_utilites::runTreeNavigator(FileSystemNavigator& fsNavigator)
 {
-    static bool fileNavigatorListOpen = false;
-    static int item_current_idx = 0;
+    int& selectedItemIdx = fsNavigator.m_selectedItemIdxImGui;
+    bool& isOpen = fsNavigator.m_isOpenInImgui;
 
-    if (ImGui::TreeNode("File navigator")) {
-        if (!fileNavigatorListOpen) {
+    if (ImGui::TreeNode(fsNavigator.getName().c_str())) {
+        if (!isOpen) {
             fsNavigator.retrievePathList();
-            fileNavigatorListOpen = true;
+            isOpen = true;
         }
 
         if (ImGui::BeginListBox("###File navigator list", ImVec2(0, 500))) {
             const auto& entryList = fsNavigator.getEntryList();
             // ImGui::SetColorEditOptions();
             for (int i = 0; i < entryList.size(); i++) {
-                const bool is_selected = (item_current_idx == i);
+                const bool is_selected = (selectedItemIdx == i);
                 const std::string& filename = entryList[i].visibleName;
                 const auto& currentEntry = entryList[i].entry;
 
                 ImGui::PushStyleColor(ImGuiCol_Text, entryList[i].color);
 
                 if (ImGui::Selectable(filename.c_str(), is_selected)) {
-                    item_current_idx = i;
-                    const auto* newEntry = fsNavigator.getEntryByIndex(item_current_idx);
+                    selectedItemIdx = i;
+                    const auto* newEntry = fsNavigator.getEntryByIndex(selectedItemIdx);
                     if (newEntry) {
-                        if (newEntry->entry.is_directory())
+                        if (newEntry->entry.is_directory()) {
                             fsNavigator.retrievePathList(newEntry->entry.path());
+                            selectedItemIdx = 0;
+                        }
                     }
                 }
 
@@ -92,6 +95,6 @@ void ImGui_utilites::runTreeNavigator(FileSystemNavigator& fsNavigator)
 
         ImGui::TreePop();
     } else {
-        fileNavigatorListOpen = false;
+        isOpen = false;
     }
 }

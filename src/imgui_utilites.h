@@ -30,27 +30,24 @@ class FileSystemNavigator {
     };
 
 public:
-    FileSystemNavigator();
-
-    void addSupportedExtension(const std::string& ext, FileOpenFunction func,
-        FileVisualColor color = s_defaultFileVisualColor);
-
+    FileSystemNavigator(const std::string& name = "File navigator");
+    void addSupportedExtension(const std::string& ext, FileOpenFunction func, FileVisualColor color = s_defaultFileVisualColor);
     void retrievePathList() { retrievePathList(m_currentEntry); }
     void retrievePathList(const std::filesystem::path& newPath);
 
-    const EntryNamePair* getEntryByIndex(int index) const
-    {
-        if (index >= 0 && index < m_entryList.size())
-            return &m_entryList[index];
-        return nullptr;
-    }
-
+    const EntryNamePair* getEntryByIndex(int index) const { return (index >= 0 && index < m_entryList.size()) ? &m_entryList[index] : nullptr; }
     const auto& getEntryList() const { return m_entryList; }
+    const std::string& getName() { return m_name; }
 
 private:
+    std::string m_name;
     std::filesystem::path m_currentEntry;
     std::vector<EntryNamePair> m_entryList;
     std::map<std::string, SupportedFileInfo> m_extensionFileInfoMap;
+
+public:
+    mutable int m_selectedItemIdxImGui = 0;
+    mutable bool m_isOpenInImgui = false;
 };
 
 #endif // IMGUI_UTILITES_H
