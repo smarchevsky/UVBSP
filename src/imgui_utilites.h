@@ -31,12 +31,11 @@ public:
 
     const EntryNamePair* getEntryByIndex(int index) const { return (index >= 0 && index < m_entryList.size()) ? &m_entryList[index] : nullptr; }
     const auto& getEntryList() const { return m_entryList; }
-    const std::string& getName() { return m_name; }
 
     void showInImGUI();
 
 private:
-    std::string m_name;
+    std::string m_ImGuiName;
     std::filesystem::path m_currentEntry;
     std::vector<EntryNamePair> m_entryList;
     std::map<std::string, SupportedFileInfo> m_extensionFileInfoMap;

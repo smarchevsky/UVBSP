@@ -1,10 +1,19 @@
 #include "imgui_utilites.h"
 #include "imgui/imgui.h"
 
+#include <iostream>
 namespace fs = std::filesystem;
 
+template <class T> // make hex string, because we can
+std::string toStringCustom(T t, std::ios_base& (*f)(std::ios_base&))
+{
+    std::ostringstream oss;
+    oss << f << t;
+    return oss.str();
+}
+
 FileSystemNavigator::FileSystemNavigator(const std::string& name)
-    : m_name(name)
+    : m_ImGuiName(name + "###" + toStringCustom((size_t)this, std::hex))
     , m_currentEntry(PROJECT_DIR)
 {
     addSupportedExtension(".uvbsp", nullptr, IM_COL32(255, 255, 25, 255));
@@ -52,7 +61,7 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
 
 void FileSystemNavigator::showInImGUI()
 {
-    if (ImGui::TreeNode(getName().c_str())) {
+    if (ImGui::TreeNode(m_ImGuiName.c_str())) {
         if (!m_isOpenInImgui) {
             retrievePathList();
             m_isOpenInImgui = true;
@@ -60,7 +69,7 @@ void FileSystemNavigator::showInImGUI()
 
         if (ImGui::BeginListBox("###File navigator list", ImVec2(0, 500))) {
             const auto& entryList = getEntryList();
-            // ImGui::SetColorEditOptions();
+
             for (int i = 0; i < entryList.size(); i++) {
                 const bool is_selected = (m_selectedItemIdxImGui == i);
                 const std::string& filename = entryList[i].visibleName;
