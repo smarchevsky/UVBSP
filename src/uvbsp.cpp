@@ -4,11 +4,11 @@
 #include <sstream>
 #include <uvbsp.h>
 
-static Vec4 packNodeToShader(BSPNode node, std::stringstream* outStream = nullptr);
-void UVBSP::addSplit(UVSplitAction split)
+static Vec4 packNodeToShader(UVBSPSplit node, std::stringstream* outStream = nullptr);
+void UVBSP::addSplit(UVBSPSplit split)
 {
     if (!m_initialSet) {
-        m_nodes[0] = BSPNode(split.pos, split.dir, split.c0, split.c1);
+        m_nodes[0] = UVBSPSplit(split.pos, split.dir, split.l, split.r);
         m_currentNode = &m_nodes[0];
         m_initialSet = true;
 
@@ -16,14 +16,14 @@ void UVBSP::addSplit(UVSplitAction split)
         int currentIndex = 0;
         for (int iteration = 0; iteration < 64; ++iteration) {
             bool isLeftPixel = dot(m_nodes[currentIndex].pos - split.pos, m_nodes[currentIndex].dir) < 0.0;
-            int& indexOfProperSide = isLeftPixel ? m_nodes[currentIndex].left : m_nodes[currentIndex].right;
+            int& indexOfProperSide = isLeftPixel ? m_nodes[currentIndex].l : m_nodes[currentIndex].r;
 
             if (indexOfProperSide < 0) {
                 currentIndex = -indexOfProperSide;
             } else {
                 indexOfProperSide = -m_nodes.size();
 
-                m_nodes.emplace_back(BSPNode(split.pos, split.dir, split.c0, split.c1));
+                m_nodes.emplace_back(UVBSPSplit(split.pos, split.dir, split.l, split.r));
                 m_currentNode = &m_nodes.back();
 
                 break;
@@ -49,9 +49,10 @@ bool UVBSP::readFromFile(const std::string& path)
     if (baseString.size()) {
         reset();
         std::string dataString = websocketpp::base64_decode(baseString);
-        size_t arraySize = dataString.size() / sizeof(BSPNode);
+        size_t arraySize = dataString.size() / sizeof(UVBSPSplit);
+
         m_nodes.resize(arraySize);
-        for (size_t i = 0; i < arraySize * sizeof(BSPNode); ++i) {
+        for (size_t i = 0; i < arraySize * sizeof(UVBSPSplit); ++i) {
             ((uint8_t*)(void*)m_nodes.data())[i] = dataString[i];
         }
         printNodes();
@@ -62,7 +63,7 @@ bool UVBSP::readFromFile(const std::string& path)
 
 void UVBSP::writeToFile(const std::string& path)
 {
-    size_t arraySize = m_nodes.size() * sizeof(BSPNode);
+    size_t arraySize = m_nodes.size() * sizeof(UVBSPSplit);
     const uint8_t* data = (uint8_t*)(void*)m_nodes.data();
     if (arraySize) {
         std::ofstream myfile(path, std::ios::out);
@@ -85,13 +86,13 @@ std::string UVBSP::printNodes()
     for (size_t i = 0; i < m_nodes.size(); ++i) {
         const auto& n = m_nodes[i];
         result += "Node: " + std::to_string(i) + ": "
-            + printIndex(n.left) + ", " + printIndex(n.right) + " | ";
+            + printIndex(n.l) + ", " + printIndex(n.r) + " | ";
     }
     result += "\n";
     return result;
 }
 
-static Vec4 packNodeToShader(BSPNode node, std::stringstream* outStream)
+static Vec4 packNodeToShader(UVBSPSplit node, std::stringstream* outStream)
 {
     constexpr float threshold = 1.f / (1 << 24); // almost vertical line
     if (abs(node.dir.x) < threshold)
@@ -102,7 +103,7 @@ static Vec4 packNodeToShader(BSPNode node, std::stringstream* outStream)
     const float tangent = node.dir.x / node.dir.y;
 
     if (node.dir.y < 0)
-        std::swap(node.left, node.right);
+        std::swap(node.l, node.r);
 
     float normalizedPos = node.pos.x + node.pos.y / tangent;
 
@@ -111,13 +112,13 @@ static Vec4 packNodeToShader(BSPNode node, std::stringstream* outStream)
             << "IVEC4("
             << reinterpret_cast<const int&>(normalizedPos) << ", "
             << reinterpret_cast<const int&>(tangent) << ", "
-            << node.left << ", "
-            << node.right << ")";
+            << node.l << ", "
+            << node.r << ")";
     }
 
     return Vec4(normalizedPos, tangent,
-        reinterpret_cast<const float&>(node.left),
-        reinterpret_cast<const float&>(node.right));
+        reinterpret_cast<const float&>(node.l),
+        reinterpret_cast<const float&>(node.r));
 }
 
 std::stringstream UVBSP::generateShader(ShaderType shaderType) const

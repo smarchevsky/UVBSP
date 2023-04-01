@@ -11,42 +11,28 @@
 
 typedef sf::Glsl::Vec4 Vec4;
 
-struct BSPNode {
-    BSPNode() = default;
-    BSPNode(vec2 p, vec2 d, ushort l, ushort r)
-        : pos(p)
-        , dir(d)
-        , left(l)
-        , right(r)
-    {
-    }
-
+// clang-format off
+struct UVBSPSplit {
+    UVBSPSplit() = default;
+    UVBSPSplit(vec2 pos, vec2 dir, ushort l, ushort r) : pos(pos), dir(dir), l(l), r(r) {}
     vec2 pos, dir;
-    int left, right;
+    int l, r;
 };
-
-struct UVSplitAction {
-    UVSplitAction(vec2 pos, vec2 dir, ushort c0, ushort c1)
-        : pos(pos)
-        , dir(dir)
-        , c0(c0)
-        , c1(c1)
-    {
-    }
-    vec2 pos, dir;
-    int c0, c1;
-};
+// clang-format on
+////////////////////////////////// UVBSP //////////////////////////////
 
 class UVBSP {
 public:
-    enum class ShaderType { GLSL,
+    enum class ShaderType {
+        GLSL,
         HLSL,
-        UnrealCustomNode };
+        UnrealCustomNode
+    };
 
 private:
-    std::vector<BSPNode> m_nodes;
+    std::vector<UVBSPSplit> m_nodes;
     std::vector<Vec4> m_packedStructs;
-    BSPNode* m_currentNode {};
+    UVBSPSplit* m_currentNode {};
 
     bool m_initialSet {};
 
@@ -58,16 +44,16 @@ public:
     int getMaxDepth(int nodeIndex) const
     {
         int left {}, right {};
-        if (m_nodes[-nodeIndex].left < 0)
-            left = getMaxDepth(m_nodes[-nodeIndex].left);
-        if (m_nodes[-nodeIndex].right < 0)
-            right = getMaxDepth(m_nodes[-nodeIndex].right);
+        if (m_nodes[-nodeIndex].l < 0)
+            left = getMaxDepth(m_nodes[-nodeIndex].l);
+        if (m_nodes[-nodeIndex].r < 0)
+            right = getMaxDepth(m_nodes[-nodeIndex].r);
         return std::max(left, right) + 1;
     }
 
     size_t getNumNodes() const { return m_nodes.size(); }
 
-    void addSplit(UVSplitAction split);
+    void addSplit(UVBSPSplit split);
 
     void adjustSplit(const vec2& uvDir)
     {
@@ -82,7 +68,7 @@ public:
 
     void reset();
 
-    const BSPNode* getLastNode() const { return m_currentNode; }
+    const UVBSPSplit* getLastNode() const { return m_currentNode; }
 
     // STRINGS ! //
 public:
@@ -94,6 +80,47 @@ public:
     std::string printNodes();
 
     std::stringstream generateShader(ShaderType shaderType) const;
+};
+
+////////////////////////////////// UVBSP HISTORY //////////////////////////////
+
+class UVBSPActionHistory {
+public:
+    UVBSPActionHistory(UVBSP& uvSplit)
+        : m_uvSplit(uvSplit)
+    {
+    }
+
+    void add(const UVBSPSplit& action)
+    {
+        if (m_drawHistory.size() > m_currentIndex)
+            m_drawHistory[m_currentIndex] = action;
+        else
+            m_drawHistory.push_back(action);
+
+        // assert(false && "m_currentIndex is beyond drawHistory size");
+
+        m_currentIndex++;
+    }
+
+    bool undo()
+    {
+        if (m_currentIndex > 0) {
+            m_uvSplit.reset();
+            for (int i = 0; i < m_currentIndex - 1; ++i) {
+                const auto& action = m_drawHistory[i];
+                m_uvSplit.addSplit(action);
+            }
+            m_currentIndex--;
+            return true;
+        }
+        return false;
+    }
+
+private:
+    std::vector<UVBSPSplit> m_drawHistory;
+    int m_currentIndex {};
+    UVBSP& m_uvSplit;
 };
 
 #endif // UVSPLIT_H

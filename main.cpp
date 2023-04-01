@@ -20,45 +20,6 @@ const std::filesystem::path projectDir(PROJECT_DIR);
 
 //////////////////////////////////////////////////
 
-class UVBSPActionHistory {
-public:
-    UVBSPActionHistory(UVBSP& uvSplit)
-        : m_uvSplit(uvSplit)
-    {
-    }
-
-    void add(const UVSplitAction& action)
-    {
-        if (m_drawHistory.size() > m_currentIndex)
-            m_drawHistory[m_currentIndex] = action;
-        else
-            m_drawHistory.push_back(action);
-
-        // assert(false && "m_currentIndex is beyond drawHistory size");
-
-        m_currentIndex++;
-    }
-
-    bool undo()
-    {
-        if (m_currentIndex > 0) {
-            m_uvSplit.reset();
-            for (int i = 0; i < m_currentIndex - 1; ++i) {
-                const auto& action = m_drawHistory[i];
-                m_uvSplit.addSplit(action);
-            }
-            m_currentIndex--;
-            return true;
-        }
-        return false;
-    }
-
-private:
-    std::vector<UVSplitAction> m_drawHistory;
-    int m_currentIndex {};
-    UVBSP& m_uvSplit;
-};
-
 int main(int argc, char** argv)
 {
     Window window(sf::VideoMode(defaultWindowSize.x, defaultWindowSize.y), "UVBSP");
@@ -120,9 +81,9 @@ int main(int argc, char** argv)
 
     window.setMouseDownEvent(sf::Mouse::Left, [&](ivec2 pos, bool mouseDown) {
         if (!mouseDown) {
-            const BSPNode* lastNode = uvSplit.getLastNode();
+            const UVBSPSplit* lastNode = uvSplit.getLastNode();
             if (lastNode) {
-                UVSplitAction split(lastNode->pos, lastNode->dir, lastNode->left, lastNode->right);
+                UVBSPSplit split(lastNode->pos, lastNode->dir, lastNode->l, lastNode->r);
                 splitActions.add(split);
                 updateWindowTitle();
             }
@@ -188,7 +149,7 @@ int main(int argc, char** argv)
 
             if (dragState == DragState::StartDrag) { // create new split
 
-                UVSplitAction split = { uvStartPos, uvCurrentPerp, colorIndex, ushort(colorIndex + 1) };
+                UVBSPSplit split = { uvStartPos, uvCurrentPerp, colorIndex, ushort(colorIndex + 1) };
                 uvSplit.addSplit(split);
                 uvSplit.updateUniforms(textureShader);
 
