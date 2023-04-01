@@ -8,12 +8,6 @@
 
 typedef uint32_t FileVisualColor; // uint8: A G R B
 static constexpr FileVisualColor s_defaultFileVisualColor = -1;
-class FileSystemNavigator;
-
-class ImGui_utilites {
-public:
-    static void runTreeNavigator(FileSystemNavigator& fsNavigator);
-};
 
 class FileSystemNavigator {
     typedef std::function<void(const std::filesystem::directory_entry&)> FileOpenFunction;
@@ -38,6 +32,8 @@ public:
     const EntryNamePair* getEntryByIndex(int index) const { return (index >= 0 && index < m_entryList.size()) ? &m_entryList[index] : nullptr; }
     const auto& getEntryList() const { return m_entryList; }
     const std::string& getName() { return m_name; }
+
+    void showInImGUI();
 
 private:
     std::string m_name;

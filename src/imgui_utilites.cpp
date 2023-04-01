@@ -50,34 +50,31 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
     }
 }
 
-void ImGui_utilites::runTreeNavigator(FileSystemNavigator& fsNavigator)
+void FileSystemNavigator::showInImGUI()
 {
-    int& selectedItemIdx = fsNavigator.m_selectedItemIdxImGui;
-    bool& isOpen = fsNavigator.m_isOpenInImgui;
-
-    if (ImGui::TreeNode(fsNavigator.getName().c_str())) {
-        if (!isOpen) {
-            fsNavigator.retrievePathList();
-            isOpen = true;
+    if (ImGui::TreeNode(getName().c_str())) {
+        if (!m_isOpenInImgui) {
+            retrievePathList();
+            m_isOpenInImgui = true;
         }
 
         if (ImGui::BeginListBox("###File navigator list", ImVec2(0, 500))) {
-            const auto& entryList = fsNavigator.getEntryList();
+            const auto& entryList = getEntryList();
             // ImGui::SetColorEditOptions();
             for (int i = 0; i < entryList.size(); i++) {
-                const bool is_selected = (selectedItemIdx == i);
+                const bool is_selected = (m_selectedItemIdxImGui == i);
                 const std::string& filename = entryList[i].visibleName;
                 const auto& currentEntry = entryList[i].entry;
 
                 ImGui::PushStyleColor(ImGuiCol_Text, entryList[i].color);
 
                 if (ImGui::Selectable(filename.c_str(), is_selected)) {
-                    selectedItemIdx = i;
-                    const auto* newEntry = fsNavigator.getEntryByIndex(selectedItemIdx);
+                    m_selectedItemIdxImGui = i;
+                    const auto* newEntry = getEntryByIndex(m_selectedItemIdxImGui);
                     if (newEntry) {
                         if (newEntry->entry.is_directory()) {
-                            fsNavigator.retrievePathList(newEntry->entry.path());
-                            selectedItemIdx = 0;
+                            retrievePathList(newEntry->entry.path());
+                            m_selectedItemIdxImGui = 0;
                         }
                     }
                 }
@@ -90,11 +87,10 @@ void ImGui_utilites::runTreeNavigator(FileSystemNavigator& fsNavigator)
             ImGui::EndListBox();
         }
 
-        // Custom size: use all width, 5 items tall
-        ImGui::Text("Full-width:");
+        ImGui::Text("AdditionalText");
 
         ImGui::TreePop();
     } else {
-        isOpen = false;
+        m_isOpenInImgui = false;
     }
 }

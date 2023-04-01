@@ -181,7 +181,8 @@ int main(int argc, char** argv)
 
         ImGui::Text("io.NavActive");
 
-        ImGui_utilites::runTreeNavigator(nav);
+        nav.showInImGUI();
+
         //////////////////////////////////// NAVIGATOR
 
         ImGui::End();
