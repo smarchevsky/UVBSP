@@ -14,7 +14,7 @@ std::string toStringCustom(T t, std::ios_base& (*f)(std::ios_base&))
 
 FileSystemNavigator::FileSystemNavigator(const std::string& name)
     : m_ImGuiName(name + "###" + toStringCustom((size_t)this, std::hex))
-    , m_currentEntry(PROJECT_DIR)
+    , m_currentEntry(DOCUMENTS_DIR)
 {
     addSupportedExtension(".uvbsp", nullptr, IM_COL32(255, 255, 25, 255));
 }

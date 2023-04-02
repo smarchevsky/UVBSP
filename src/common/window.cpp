@@ -6,14 +6,15 @@
 #include <filesystem>
 
 #define MAX_DIRTY(x) m_showDisplayDirtyLevel = m_showDisplayDirtyLevel > x ? m_showDisplayDirtyLevel : x
-const std::filesystem::path projectDir(PROJECT_DIR);
+namespace fs = std::filesystem;
+
 uint32_t Window::s_instanceCounter = 0;
 void Window::init()
 {
     bool s = ImGui::SFML::Init(*this, false);
     ImGuiIO& io = ImGui::GetIO();
     io.Fonts->ClearFonts();
-    m_robotoFont = io.Fonts->AddFontFromFileTTF((projectDir / "imgui" / "fonts" / "Roboto.ttf").c_str(), 18.0f);
+    m_robotoFont = io.Fonts->AddFontFromFileTTF((fs::path(FONT_DIR) / "Roboto.ttf").c_str(), 18.0f);
 
     s |= ImGui::SFML::UpdateFontTexture();
 

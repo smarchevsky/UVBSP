@@ -10,8 +10,8 @@
 #endif
 
 namespace fs = std::filesystem;
-static const fs::path projectDir(PROJECT_DIR);
-static const fs::path shaderFolderPath(projectDir / "shaders");
+static const fs::path documentsPath(DOCUMENTS_DIR);
+static const fs::path shaderPath(SHADER_DIR);
 
 Application_UVBSP::Application_UVBSP()
     : m_splitActions(m_uvSplit)
@@ -26,7 +26,7 @@ Application_UVBSP::Application_UVBSP()
     m_backgroundSprite.setTexture(m_texture);
 
     // Create BSP shader from file
-    m_BSPShader.loadFromFile(shaderFolderPath / "BSPshader.glsl", sf::Shader::Type::Fragment);
+    m_BSPShader.loadFromFile(shaderPath / "BSPshader.frag", sf::Shader::Type::Fragment);
     m_BSPShader.setUniform("texture", m_texture);
     m_uvSplit.updateUniforms(m_BSPShader);
 
@@ -85,7 +85,7 @@ void Application_UVBSP::bindActions()
     // todo: add ImGui context menu on load/save
     m_window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control,
         [this]() {
-            std::string fileDir = projectDir / "test.uvbsp";
+            std::string fileDir = documentsPath / "test.uvbsp";
             m_uvSplit.writeToFile(fileDir);
             m_window.setTitle("Saved to: " + fileDir);
         });
@@ -94,7 +94,7 @@ void Application_UVBSP::bindActions()
     // todo: add ImGui context menu on load/save
     m_window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control,
         [this]() {
-            std::string fileDir = projectDir / "test.uvbsp";
+            std::string fileDir = documentsPath / "test.uvbsp";
             m_uvSplit.readFromFile(fileDir);
             m_uvSplit.updateUniforms(m_BSPShader);
         });

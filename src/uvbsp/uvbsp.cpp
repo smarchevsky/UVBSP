@@ -1,8 +1,8 @@
-#include <../thirdparty/base64.hpp>
+#include "third_party/base64.hpp"
 #include <SFML/Graphics/Shader.hpp>
 #include <fstream>
 #include <sstream>
-#include <uvbsp.h>
+#include <uvbsp/uvbsp.h>
 
 static Vec4 packNodeToShader(UVBSPSplit node, std::stringstream* outStream = nullptr);
 void UVBSP::addSplit(UVBSPSplit split)
