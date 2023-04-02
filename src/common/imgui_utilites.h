@@ -6,6 +6,7 @@
 #include <map>
 #include <vector>
 
+namespace ImguiUtils {
 typedef uint32_t FileVisualColor; // uint8: A G R B
 static constexpr FileVisualColor s_defaultFileVisualColor = -1;
 
@@ -44,5 +45,5 @@ public:
     mutable int m_selectedItemIdxImGui = 0;
     mutable bool m_isOpenInImgui = false;
 };
-
+} // ImguiUtils
 #endif // IMGUI_UTILITES_H

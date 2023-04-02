@@ -2,8 +2,8 @@
 #include "imgui/imgui.h"
 
 #include <iostream>
+namespace ImguiUtils {
 namespace fs = std::filesystem;
-
 template <class T> // make hex string, because we can
 std::string toStringCustom(T t, std::ios_base& (*f)(std::ios_base&))
 {
@@ -103,3 +103,5 @@ void FileSystemNavigator::showInImGUI()
         m_isOpenInImgui = false;
     }
 }
+
+} // ImguiUtils
