@@ -25,7 +25,8 @@ class Application_UVBSP : public Application {
     UVBSPActionHistory m_splitActions;
     ushort m_colorIndex = 0;
 
-    ImguiUtils::FileSystemNavigator m_fsNavigator;
+    std::unique_ptr<ImguiUtils::FileSystemNavigator> m_fsNavigator;
+    std::filesystem::path m_currentFilePath;
 
 public:
     Application_UVBSP();

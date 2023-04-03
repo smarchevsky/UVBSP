@@ -1,10 +1,15 @@
 #include "imgui_utilites.h"
 #include "imgui/imgui.h"
+#include "imgui/imgui_stdlib.h"
 
 #include <iostream>
 namespace ImguiUtils {
-namespace fs = std::filesystem;
-template <class T> // make hex string, because we can
+
+#ifndef LOG
+#define LOG(x) std::cout << x << std::endl
+#endif
+
+template <class T> // make hex string, because I can (copy from StackOverflow)
 std::string toStringCustom(T t, std::ios_base& (*f)(std::ios_base&))
 {
     std::ostringstream oss;
@@ -12,22 +17,32 @@ std::string toStringCustom(T t, std::ios_base& (*f)(std::ios_base&))
     return oss.str();
 }
 
-FileSystemNavigator::FileSystemNavigator(const std::string& name)
-    : m_ImGuiName(name + "###" + toStringCustom((size_t)this, std::hex))
+FileSystemNavigator::FileSystemNavigator(FileAction action, const std::string& name, const fs::path& path)
+    : m_thisPtrHashStr(toStringCustom((size_t)this, std::hex))
+    , m_ImGuiWidgetName(name + "###" + m_thisPtrHashStr)
+    , m_ImGuiFileListBoxName("###FileList" + m_thisPtrHashStr)
+    , m_ImGuiTextBoxName("###InputTextBlock" + m_thisPtrHashStr)
     , m_currentEntry(DOCUMENTS_DIR)
+    , m_fileAction(action)
 {
-    addSupportedExtension(".uvbsp", nullptr, IM_COL32(255, 255, 25, 255));
+    retrievePathList(m_currentEntry);
 }
 
-void FileSystemNavigator::addSupportedExtension(const std::string& ext, FileOpenFunction func, FileVisualColor color)
+void FileSystemNavigator::addSupportedExtension(const fs::path& newExt,
+    FileInteractionFunction func, FileVisualColor color)
 {
-    m_extensionFileInfoMap.insert({ ext, { func, color } });
+    m_extensionFileInfoMap[newExt] = SupportedFileInfo { func, color };
+
+    for (auto& e : m_entryList) {
+        const auto& ext = e.entry.path().extension();
+        if (ext == newExt)
+            e.visibleNameColor = color;
+    }
 }
 
 void FileSystemNavigator::retrievePathList(const fs::path& newPath)
 {
     fs::directory_entry newEntry(newPath);
-
     if (newEntry.exists() && newEntry.is_directory()) {
 
         decltype(m_entryList) newEntryList;
@@ -41,16 +56,12 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
                  fs::directory_options::skip_permission_denied)) {
 
             std::string newFileName = entry.path().filename();
-            auto fileColorIterator = m_extensionFileInfoMap.end();
-
-            if (!entry.is_directory()) {
-                fileColorIterator = m_extensionFileInfoMap.find(entry.path().extension());
+            FileVisualColor fileColor = s_defaultFileVisualColor;
+            const bool isDir = entry.is_directory();
+            if (!isDir) {
                 newFileName = "  " + newFileName;
+                fileColor = getColorByExt(entry.path().extension());
             }
-
-            FileVisualColor fileColor = (fileColorIterator == m_extensionFileInfoMap.end())
-                ? IM_COL32(255, 255, 255, 255)
-                : fileColorIterator->second.color;
 
             newEntryList.push_back({ entry, newFileName, fileColor });
         }
@@ -59,31 +70,41 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
     }
 }
 
-void FileSystemNavigator::showInImGUI()
+bool FileSystemNavigator::showInImGUI()
 {
-    if (ImGui::TreeNode(m_ImGuiName.c_str())) {
-        if (!m_isOpenInImgui) {
-            retrievePathList();
-            m_isOpenInImgui = true;
-        }
+    if (ImGui::Begin("Save file", &m_isOpenInImgui, ImGuiWindowFlags_NoCollapse)) {
+        ImGui::Text("Random text");
 
-        if (ImGui::BeginListBox("###File navigator list", ImVec2(0, 500))) {
+        if (ImGui::BeginListBox(m_ImGuiFileListBoxName.c_str(), ImVec2(0, 500))) {
             const auto& entryList = getEntryList();
 
             for (int i = 0; i < entryList.size(); i++) {
                 const bool is_selected = (m_selectedItemIdxImGui == i);
                 const std::string& filename = entryList[i].visibleName;
-                const auto& currentEntry = entryList[i].entry;
 
-                ImGui::PushStyleColor(ImGuiCol_Text, entryList[i].color);
-
+                ImGui::PushStyleColor(ImGuiCol_Text, entryList[i].visibleNameColor);
                 if (ImGui::Selectable(filename.c_str(), is_selected)) {
                     m_selectedItemIdxImGui = i;
-                    const auto* newEntry = getEntryByIndex(m_selectedItemIdxImGui);
-                    if (newEntry) {
-                        if (newEntry->entry.is_directory()) {
-                            retrievePathList(newEntry->entry.path());
+
+                    if (const auto* selectedEntryPtr = getEntryByIndex(m_selectedItemIdxImGui)) {
+
+                        if (selectedEntryPtr->entry.is_directory()) {
+                            retrievePathList(selectedEntryPtr->entry.path());
                             m_selectedItemIdxImGui = 0;
+
+                        } else if (selectedEntryPtr->entry.is_regular_file()) {
+                            const fs::path& filePath = selectedEntryPtr->entry.path();
+                            const fs::path& fileName = filePath.filename();
+                            m_selectedFilename = fileName;
+
+                            const std::string& ext = fileName.extension();
+                            auto foundExtensionOpenFunctionPair = m_extensionFileInfoMap.find(ext);
+                            if (foundExtensionOpenFunctionPair != m_extensionFileInfoMap.end()) {
+                                const auto& function = foundExtensionOpenFunctionPair->second.function;
+                                if (function)
+                                    function(filePath);
+                                m_isOpenInImgui = false;
+                            }
                         }
                     }
                 }
@@ -94,14 +115,14 @@ void FileSystemNavigator::showInImGUI()
                     ImGui::SetItemDefaultFocus();
             }
             ImGui::EndListBox();
+
+            if (ImGui::InputText(m_ImGuiTextBoxName.c_str(), &m_selectedFilename)) {
+            }
         }
-
-        ImGui::Text("AdditionalText");
-
-        ImGui::TreePop();
-    } else {
-        m_isOpenInImgui = false;
     }
+    ImGui::End();
+
+    return m_isOpenInImgui;
 }
 
 } // ImguiUtils

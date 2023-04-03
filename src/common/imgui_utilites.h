@@ -3,47 +3,86 @@
 
 #include <filesystem>
 #include <functional>
-#include <map>
+
+#include <unordered_map>
 #include <vector>
 
 namespace ImguiUtils {
+
+namespace fs = std::filesystem;
+
 typedef uint32_t FileVisualColor; // uint8: A G R B
 static constexpr FileVisualColor s_defaultFileVisualColor = -1;
 
-class FileSystemNavigator {
-    typedef std::function<void(const std::filesystem::directory_entry&)> FileOpenFunction;
-
-    struct EntryNamePair {
-        const std::filesystem::directory_entry entry;
-        const std::string visibleName;
-        const FileVisualColor color = s_defaultFileVisualColor;
-    };
-
-    struct SupportedFileInfo {
-        const FileOpenFunction function;
-        const FileVisualColor color = s_defaultFileVisualColor;
-    };
-
-public:
-    FileSystemNavigator(const std::string& name = "File navigator");
-    void addSupportedExtension(const std::string& ext, FileOpenFunction func, FileVisualColor color = s_defaultFileVisualColor);
-    void retrievePathList() { retrievePathList(m_currentEntry); }
-    void retrievePathList(const std::filesystem::path& newPath);
-
-    const EntryNamePair* getEntryByIndex(int index) const { return (index >= 0 && index < m_entryList.size()) ? &m_entryList[index] : nullptr; }
-    const auto& getEntryList() const { return m_entryList; }
-
-    void showInImGUI();
-
-private:
-    std::string m_ImGuiName;
-    std::filesystem::path m_currentEntry;
-    std::vector<EntryNamePair> m_entryList;
-    std::map<std::string, SupportedFileInfo> m_extensionFileInfoMap;
-
-public:
-    mutable int m_selectedItemIdxImGui = 0;
-    mutable bool m_isOpenInImgui = false;
+enum FileAction : uint8_t {
+    FileRead,
+    FileWrite
 };
+///////////// FILE SYSTEM NAVIGATOR
+
+class FileSystemNavigator {
+protected: // const, structs, typedefs
+    static constexpr int s_inputTextBoxSize = 256;
+
+    typedef std::function<void(const fs::path&)> FileInteractionFunction;
+    struct SupportedFileInfo {
+        SupportedFileInfo& operator=(const SupportedFileInfo& rhs)
+        {
+            const_cast<FileInteractionFunction&>(function) = rhs.function;
+            const_cast<FileVisualColor&>(color) = rhs.color;
+            return *this;
+        };
+        const FileInteractionFunction function;
+        const FileVisualColor color = s_defaultFileVisualColor;
+    };
+
+    struct EntryNameColor {
+        const fs::directory_entry entry;
+        const std::string visibleName;
+        FileVisualColor visibleNameColor = s_defaultFileVisualColor;
+    };
+
+protected: // data
+    const std::string m_thisPtrHashStr;
+    const std::string m_ImGuiWidgetName;
+    const std::string m_ImGuiFileListBoxName;
+    const std::string m_ImGuiTextBoxName;
+
+    // supported file extensions
+    std::unordered_map<fs::path, SupportedFileInfo> m_extensionFileInfoMap;
+
+    fs::path m_currentEntry;
+    std::vector<EntryNameColor> m_entryList;
+    std::string m_selectedFilename;
+
+    int m_selectedItemIdxImGui = 0;
+    bool m_isOpenInImgui = true;
+    const FileAction m_fileAction;
+
+public:
+    FileSystemNavigator(FileAction action, const std::string& name, const fs::path& path);
+
+    void addSupportedExtension(const fs::path& ext, FileInteractionFunction func,
+        FileVisualColor color = s_defaultFileVisualColor);
+
+    bool showInImGUI();
+
+protected:
+    FileVisualColor getColorByExt(const fs::path& ext)
+    {
+        auto foundExt = m_extensionFileInfoMap.find(ext);
+        if (foundExt != m_extensionFileInfoMap.end())
+            return foundExt->second.color;
+        return s_defaultFileVisualColor;
+    }
+    void retrievePathList(const fs::path& newPath);
+    const EntryNameColor* getEntryByIndex(int index) const { return (index >= 0 && index < m_entryList.size()) ? &m_entryList[index] : nullptr; }
+    const auto& getEntryList() const { return m_entryList; }
+};
+
+///////////// FILE WRITER
+
+//
+
 } // ImguiUtils
 #endif // IMGUI_UTILITES_H

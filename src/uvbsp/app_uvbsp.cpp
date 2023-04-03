@@ -31,6 +31,14 @@ Application_UVBSP::Application_UVBSP()
     m_uvSplit.updateUniforms(m_BSPShader);
 
     bindActions();
+
+    // configure ImGui
+    auto& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowPadding = ImVec2(15, 15);
+    style.WindowRounding = 10.0f;
+    style.DisplaySafeAreaPadding = ImVec2(300, 0);
 }
 
 bool Application_UVBSP::loadTexture(const fs::path& path)
@@ -49,23 +57,10 @@ bool Application_UVBSP::loadTexture(const fs::path& path)
 void Application_UVBSP::drawContext()
 {
     auto imguiFunctions = [&]() {
-        auto& io = ImGui::GetIO();
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-
-        ImGuiWindowFlags window_flags = 0;
-
-        ImGuiStyle& style = ImGui::GetStyle();
-        style.WindowPadding = ImVec2(15, 15);
-        style.WindowRounding = 10.0f;
-        style.DisplaySafeAreaPadding = ImVec2(300, 0);
-
-        ImGui::Begin("Triangle Position/Color", nullptr, window_flags);
-
-        ImGui::Text("io.NavActive");
-
-        m_fsNavigator.showInImGUI();
-
-        ImGui::End();
+        if (m_fsNavigator) {
+            if (!m_fsNavigator->showInImGUI())
+                m_fsNavigator.reset();
+        }
     };
 
     m_window.clear(sf::Color(50, 50, 50));
@@ -81,22 +76,41 @@ void Application_UVBSP::bindActions()
     // or std::bind(&Application_UVBSP::some_function, this);
     ///////////////// KEY EVENTS ///////////////////
 
-    // save
-    // todo: add ImGui context menu on load/save
-    m_window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control,
-        [this]() {
-            std::string fileDir = documentsPath / "test.uvbsp";
-            m_uvSplit.writeToFile(fileDir);
-            m_window.setTitle("Saved to: " + fileDir);
-        });
-
     // open
-    // todo: add ImGui context menu on load/save
     m_window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control,
         [this]() {
-            std::string fileDir = documentsPath / "test.uvbsp";
-            m_uvSplit.readFromFile(fileDir);
-            m_uvSplit.updateUniforms(m_BSPShader);
+            m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator(ImguiUtils::FileRead, "Open file", documentsPath));
+            m_fsNavigator->addSupportedExtension(
+                ".uvbsp", [this](const std::filesystem::path& path) {
+                    // read file function
+                    if (m_uvSplit.readFromFile(path)) {
+                        m_uvSplit.updateUniforms(m_BSPShader);
+                        m_currentFilePath = path;
+
+                        LOG("File opened: " << path);
+                    } else {
+                        LOG("Failed to open file: " << path);
+                    }
+                },
+                IM_COL32(255, 255, 128, 255));
+        });
+
+    // save
+    m_window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control,
+        [this]() {
+            if (m_currentFilePath.empty()) {
+                m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator(ImguiUtils::FileWrite, "Save file", documentsPath));
+                m_fsNavigator->addSupportedExtension(
+                    ".uvbsp", [this](const std::filesystem::path& path) {
+                        std::filesystem::path fullFilePath(path / "test2.uvbsp");
+                        m_uvSplit.writeToFile(fullFilePath);
+                        LOG("File saved: " << fullFilePath);
+                    },
+                    IM_COL32(255, 255, 128, 255));
+            } else {
+                m_uvSplit.writeToFile(m_currentFilePath);
+                m_window.setTitle("Saved to: " + std::string(m_currentFilePath));
+            }
         });
 
     // undo
