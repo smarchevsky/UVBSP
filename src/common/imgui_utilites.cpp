@@ -75,6 +75,7 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
         }
         m_entryList = std::move(newEntryList);
         m_currentEntry = newEntry.path();
+        m_currentPathText = m_currentEntry;
 
         m_mustFocusListBox = true;
         m_selectedItemIdx = 0;
@@ -86,18 +87,20 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
 bool FileSystemNavigator::showInImGUI()
 {
     // ImGui::SetNextWindowCollapsed(true, ImGuiCond_Appearing);
-    if (ImGui::Begin(m_ImGuiWidgetName.c_str(), &m_isOpenInImgui, ImGuiWindowFlags_NoCollapse)) {
+    ImGui::SetNextWindowSize(ImVec2(m_width, m_height));
+    if (ImGui::Begin(m_ImGuiWidgetName.c_str(), &m_isOpenInImgui, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar)) {
         if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape))) {
             shouldClose();
         }
 
+        ImGui::Text("%s", m_currentPathText.c_str());
         ImGui::Checkbox("Extension sensitive##65536", &m_extensionSensitive);
         if (m_extensionSensitive != m_extensionSensitivePrev) {
             retrievePathList(m_currentEntry);
             m_extensionSensitivePrev = m_extensionSensitive;
         }
 
-        if (ImGui::BeginListBox(m_ImGuiFileListBoxName.c_str(), ImVec2(0, 500))) {
+        if (ImGui::BeginListBox(m_ImGuiFileListBoxName.c_str(), ImVec2(m_width, m_height - 126))) {
             const auto& entryList = getEntryList();
             if (m_mustFocusListBox) {
                 ImGui::SetKeyboardFocusHere(0);
@@ -132,6 +135,7 @@ bool FileSystemNavigator::showInImGUI()
             }
             ImGui::EndListBox();
 
+            ImGui::SetNextItemWidth(m_width);
             if (ImGui::InputText(m_ImGuiTextBoxName.c_str(), &m_selectedFilename)) {
             }
         }

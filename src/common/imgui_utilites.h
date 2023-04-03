@@ -55,6 +55,7 @@ protected: // data
     fs::path m_currentEntry;
     std::vector<EntryNameColor> m_entryList;
     std::string m_selectedFilename;
+    std::string m_currentPathText;
 
     int m_selectedItemIdx = 0;
     bool m_isOpenInImgui = true;
@@ -64,6 +65,7 @@ protected: // data
     bool m_extensionSensitivePrev = false;
 
     const FileAction m_fileAction;
+    const uint16_t m_width = 400, m_height = 500;
 
 public:
     void shouldClose() { m_isOpenInImgui = false; }
