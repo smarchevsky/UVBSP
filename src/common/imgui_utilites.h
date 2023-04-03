@@ -45,6 +45,7 @@ protected: // const, structs, typedefs
 protected: // data
     const std::string m_thisPtrHashStr;
     const std::string m_ImGuiWidgetName;
+    const std::string m_ImGuiExtSensitiveCheckboxName;
     const std::string m_ImGuiFileListBoxName;
     const std::string m_ImGuiTextBoxName;
 
@@ -57,10 +58,10 @@ protected: // data
 
     int m_selectedItemIdx = 0;
     bool m_isOpenInImgui = true;
-    bool m_isSelectedListBox = false;
+    bool m_mustFocusListBox = false;
 
-    bool m_extensionSensitive = true;
-    bool m_extensionSensitivePrevFrame = true;
+    bool m_extensionSensitive = false;
+    bool m_extensionSensitivePrev = false;
 
     const FileAction m_fileAction;
 
@@ -81,6 +82,7 @@ protected:
             return foundExt->second.color;
         return s_defaultFileVisualColor;
     }
+    bool runOpenFileFunction(const fs::path& filePath);
     void retrievePathList(const fs::path& newPath);
     const EntryNameColor* getEntryByIndex(int index) const { return (index >= 0 && index < m_entryList.size()) ? &m_entryList[index] : nullptr; }
     const auto& getEntryList() const { return m_entryList; }

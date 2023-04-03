@@ -20,6 +20,7 @@ std::string toStringCustom(T t, std::ios_base& (*f)(std::ios_base&))
 FileSystemNavigator::FileSystemNavigator(FileAction action, const std::string& name, const fs::path& path)
     : m_thisPtrHashStr(toStringCustom((size_t)this, std::hex))
     , m_ImGuiWidgetName(name + "###" + m_thisPtrHashStr)
+    , m_ImGuiExtSensitiveCheckboxName("Extension sensitive###" + m_thisPtrHashStr)
     , m_ImGuiFileListBoxName("###FileList" + m_thisPtrHashStr)
     , m_ImGuiTextBoxName("###InputTextBlock" + m_thisPtrHashStr)
     , m_currentEntry(DOCUMENTS_DIR)
@@ -34,8 +35,7 @@ void FileSystemNavigator::addSupportedExtension(const fs::path& newExt,
     m_extensionFileInfoMap[newExt] = SupportedFileInfo { func, color };
 
     for (auto& e : m_entryList) {
-        const auto& ext = e.entry.path().extension();
-        if (ext == newExt)
+        if (e.entry.path().extension() == newExt)
             e.visibleNameColor = color;
     }
 }
@@ -76,31 +76,32 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
         m_entryList = std::move(newEntryList);
         m_currentEntry = newEntry.path();
 
-        m_isSelectedListBox = false;
+        m_mustFocusListBox = true;
         m_selectedItemIdx = 0;
     }
+    static int retrievePathListCounter = 0;
+    LOG("Path retrieved num: " << ++retrievePathListCounter);
 }
 
 bool FileSystemNavigator::showInImGUI()
 {
-
-    if (ImGui::Begin("Save file", &m_isOpenInImgui, ImGuiWindowFlags_NoCollapse)) {
+    // ImGui::SetNextWindowCollapsed(true, ImGuiCond_Appearing);
+    if (ImGui::Begin(m_ImGuiWidgetName.c_str(), &m_isOpenInImgui, ImGuiWindowFlags_NoCollapse)) {
         if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape))) {
             shouldClose();
         }
 
-        // ImGui::Text("Random text");
         ImGui::Checkbox("Extension sensitive##65536", &m_extensionSensitive);
-        if (m_extensionSensitive != m_extensionSensitivePrevFrame) {
+        if (m_extensionSensitive != m_extensionSensitivePrev) {
             retrievePathList(m_currentEntry);
-            m_extensionSensitivePrevFrame = m_extensionSensitive;
+            m_extensionSensitivePrev = m_extensionSensitive;
         }
 
         if (ImGui::BeginListBox(m_ImGuiFileListBoxName.c_str(), ImVec2(0, 500))) {
             const auto& entryList = getEntryList();
-            if (!m_isSelectedListBox) {
+            if (m_mustFocusListBox) {
                 ImGui::SetKeyboardFocusHere(0);
-                m_isSelectedListBox = true;
+                m_mustFocusListBox = false;
             }
 
             for (int i = 0; i < entryList.size(); i++) {
@@ -119,17 +120,8 @@ bool FileSystemNavigator::showInImGUI()
 
                         } else if (selectedEntryPtr->entry.is_regular_file()) {
                             const fs::path& filePath = selectedEntryPtr->entry.path();
-                            const fs::path& fileName = filePath.filename();
-                            m_selectedFilename = fileName;
-
-                            const std::string& ext = fileName.extension();
-                            auto foundExtensionOpenFunctionPair = m_extensionFileInfoMap.find(ext);
-                            if (foundExtensionOpenFunctionPair != m_extensionFileInfoMap.end()) {
-                                const auto& function = foundExtensionOpenFunctionPair->second.function;
-                                if (function)
-                                    function(filePath);
+                            if (runOpenFileFunction(filePath))
                                 shouldClose();
-                            }
                         }
                     }
                 }
@@ -146,7 +138,29 @@ bool FileSystemNavigator::showInImGUI()
     }
     ImGui::End();
 
+    if (false) {
+        if (ImGui::Begin("Save file", &m_isOpenInImgui, ImGuiWindowFlags_NoCollapse)) {
+        }
+        ImGui::End();
+    }
+
     return m_isOpenInImgui;
 }
 
+bool FileSystemNavigator::runOpenFileFunction(const fs::path& filePath)
+{
+    const fs::path& fileName = filePath.filename();
+    m_selectedFilename = fileName;
+
+    const std::string& ext = fileName.extension();
+    auto foundExtensionOpenFunctionPair = m_extensionFileInfoMap.find(ext);
+    if (foundExtensionOpenFunctionPair != m_extensionFileInfoMap.end()) {
+        const auto& function = foundExtensionOpenFunctionPair->second.function;
+        if (function) {
+            function(filePath);
+            return true;
+        }
+    }
+    return false;
+}
 } // ImguiUtils
