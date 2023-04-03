@@ -55,8 +55,13 @@ protected: // data
     std::vector<EntryNameColor> m_entryList;
     std::string m_selectedFilename;
 
-    int m_selectedItemIdxImGui = 0;
+    int m_selectedItemIdx = 0;
     bool m_isOpenInImgui = true;
+    bool m_isSelectedListBox = false;
+
+    bool m_extensionSensitive = true;
+    bool m_extensionSensitivePrevFrame = true;
+
     const FileAction m_fileAction;
 
 public:

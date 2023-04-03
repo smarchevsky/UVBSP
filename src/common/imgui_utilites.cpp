@@ -55,18 +55,29 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
         for (const fs::directory_entry& entry : fs::directory_iterator(newEntry,
                  fs::directory_options::skip_permission_denied)) {
 
-            std::string newFileName = entry.path().filename();
-            FileVisualColor fileColor = s_defaultFileVisualColor;
             const bool isDir = entry.is_directory();
-            if (!isDir) {
-                newFileName = "  " + newFileName;
-                fileColor = getColorByExt(entry.path().extension());
-            }
+            fs::path fileName = entry.path().filename();
+            fs::path fileExt = fileName.extension();
 
-            newEntryList.push_back({ entry, newFileName, fileColor });
+            std::string fileNameStr = entry.path().filename();
+
+            if (isDir) {
+                newEntryList.push_back({ entry, fileNameStr, s_defaultFileVisualColor });
+            } else {
+                if (m_extensionSensitive) {
+                    if (m_extensionFileInfoMap.find(fileExt) != m_extensionFileInfoMap.end()) {
+                        newEntryList.push_back({ entry, "  " + fileNameStr, getColorByExt(fileExt) });
+                    }
+                } else {
+                    newEntryList.push_back({ entry, "  " + fileNameStr, getColorByExt(fileExt) });
+                }
+            }
         }
         m_entryList = std::move(newEntryList);
         m_currentEntry = newEntry.path();
+
+        m_isSelectedListBox = false;
+        m_selectedItemIdx = 0;
     }
 }
 
@@ -77,24 +88,34 @@ bool FileSystemNavigator::showInImGUI()
         if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape))) {
             shouldClose();
         }
-        ImGui::Text("Random text");
+
+        // ImGui::Text("Random text");
+        ImGui::Checkbox("Extension sensitive##65536", &m_extensionSensitive);
+        if (m_extensionSensitive != m_extensionSensitivePrevFrame) {
+            retrievePathList(m_currentEntry);
+            m_extensionSensitivePrevFrame = m_extensionSensitive;
+        }
 
         if (ImGui::BeginListBox(m_ImGuiFileListBoxName.c_str(), ImVec2(0, 500))) {
             const auto& entryList = getEntryList();
+            if (!m_isSelectedListBox) {
+                ImGui::SetKeyboardFocusHere(0);
+                m_isSelectedListBox = true;
+            }
 
             for (int i = 0; i < entryList.size(); i++) {
-                const bool is_selected = (m_selectedItemIdxImGui == i);
+                const bool is_selected = (m_selectedItemIdx == i);
                 const std::string& filename = entryList[i].visibleName;
 
                 ImGui::PushStyleColor(ImGuiCol_Text, entryList[i].visibleNameColor);
-                if (ImGui::Selectable(filename.c_str(), is_selected)) {
-                    m_selectedItemIdxImGui = i;
+                if (ImGui::Selectable(filename.c_str(), is_selected)) { // on item selected
 
-                    if (const auto* selectedEntryPtr = getEntryByIndex(m_selectedItemIdxImGui)) {
+                    m_selectedItemIdx = i;
+
+                    if (const auto* selectedEntryPtr = getEntryByIndex(m_selectedItemIdx)) {
 
                         if (selectedEntryPtr->entry.is_directory()) {
                             retrievePathList(selectedEntryPtr->entry.path());
-                            m_selectedItemIdxImGui = 0;
 
                         } else if (selectedEntryPtr->entry.is_regular_file()) {
                             const fs::path& filePath = selectedEntryPtr->entry.path();
@@ -112,7 +133,6 @@ bool FileSystemNavigator::showInImGUI()
                         }
                     }
                 }
-
                 ImGui::PopStyleColor();
 
                 if (is_selected)
