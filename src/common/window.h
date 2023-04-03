@@ -194,7 +194,7 @@ private:
 
     class ImFont* m_robotoFont;
 
-    int m_showDisplayDirtyLevel = 5;
+    int m_showDisplayDirtyLevel = 10;
     static uint32_t s_instanceCounter;
 };
 

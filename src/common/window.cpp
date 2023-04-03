@@ -66,8 +66,6 @@ void Window::processEvents()
 
             if (m_screenResizeEvent)
                 m_screenResizeEvent(oldScreenSize, m_windowSize);
-            MAX_DIRTY(2);
-
         } break;
 
         case sf::Event::LostFocus:
@@ -166,7 +164,7 @@ void Window::processEvents()
         default: {
         }
         }
-        MAX_DIRTY(1);
+        MAX_DIRTY(2);
     }
 }
 
