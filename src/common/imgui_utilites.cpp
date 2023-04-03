@@ -72,7 +72,11 @@ void FileSystemNavigator::retrievePathList(const fs::path& newPath)
 
 bool FileSystemNavigator::showInImGUI()
 {
+
     if (ImGui::Begin("Save file", &m_isOpenInImgui, ImGuiWindowFlags_NoCollapse)) {
+        if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape))) {
+            shouldClose();
+        }
         ImGui::Text("Random text");
 
         if (ImGui::BeginListBox(m_ImGuiFileListBoxName.c_str(), ImVec2(0, 500))) {
@@ -103,7 +107,7 @@ bool FileSystemNavigator::showInImGUI()
                                 const auto& function = foundExtensionOpenFunctionPair->second.function;
                                 if (function)
                                     function(filePath);
-                                m_isOpenInImgui = false;
+                                shouldClose();
                             }
                         }
                     }

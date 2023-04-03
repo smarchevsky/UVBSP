@@ -60,6 +60,7 @@ protected: // data
     const FileAction m_fileAction;
 
 public:
+    void shouldClose() { m_isOpenInImgui = false; }
     FileSystemNavigator(FileAction action, const std::string& name, const fs::path& path);
 
     void addSupportedExtension(const fs::path& ext, FileInteractionFunction func,

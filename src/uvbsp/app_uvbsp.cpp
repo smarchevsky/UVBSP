@@ -76,6 +76,8 @@ void Application_UVBSP::bindActions()
     // or std::bind(&Application_UVBSP::some_function, this);
     ///////////////// KEY EVENTS ///////////////////
 
+    m_window.addKeyDownEvent(sf::Keyboard::Escape, ModifierKey::None, [this]() { if (m_fsNavigator) m_fsNavigator->shouldClose(); });
+
     // open
     m_window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control,
         [this]() {
