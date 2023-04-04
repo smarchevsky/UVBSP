@@ -10,12 +10,13 @@
 #endif
 
 namespace fs = std::filesystem;
-static const fs::path documentsPath(DOCUMENTS_DIR);
 static const fs::path shaderPath(SHADER_DIR);
 
 Application_UVBSP::Application_UVBSP()
     : m_splitActions(m_uvSplit)
 {
+    m_currentDir = DOCUMENTS_DIR;
+
     m_window.setTitle("UVBSP");
     // Create default grey texture
     sf::Image img;
@@ -81,17 +82,21 @@ void Application_UVBSP::bindActions()
     // open
     m_window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control,
         [this]() {
-            m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator(ImguiUtils::FileRead, "Open file", documentsPath));
+            m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator(ImguiUtils::FileRead, "Open file", m_currentDir));
             m_fsNavigator->addSupportedExtension(
                 ".uvbsp", [this](const std::filesystem::path& path) {
                     // read file function
                     if (m_uvSplit.readFromFile(path)) {
                         m_uvSplit.updateUniforms(m_BSPShader);
-                        m_currentFilePath = path;
 
-                        LOG("File opened: " << path);
+                        m_currentFileName = path.filename();
+                        m_currentDir = path.parent_path();
+
+                        LOG("File opened: RelativePath: " << m_currentDir.c_str() << ", FileName: " << m_currentFileName->c_str());
+                        return true;
                     } else {
                         LOG("Failed to open file: " << path);
+                        return false;
                     }
                 },
                 IM_COL32(255, 255, 128, 255));
@@ -100,18 +105,25 @@ void Application_UVBSP::bindActions()
     // save
     m_window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control,
         [this]() {
-            if (m_currentFilePath.empty()) {
-                m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator(ImguiUtils::FileWrite, "Save file", documentsPath));
+            if (false && m_currentFileName) {
+                auto fullPath = m_currentDir / *m_currentFileName;
+                fs::directory_entry entry(fullPath);
+                if (entry.exists()) {
+                    m_uvSplit.writeToFile(fullPath);
+                    m_window.setTitle("Saved to: " + std::string(fullPath));
+                } else {
+                    LOG("Invalid path: " << fullPath);
+                }
+            } else {
+                m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator(ImguiUtils::FileWrite, "Save file", m_currentDir));
                 m_fsNavigator->addSupportedExtension(
                     ".uvbsp", [this](const std::filesystem::path& path) {
                         std::filesystem::path fullFilePath(path / "test2.uvbsp");
                         m_uvSplit.writeToFile(fullFilePath);
                         LOG("File saved: " << fullFilePath);
+                        return true;
                     },
                     IM_COL32(255, 255, 128, 255));
-            } else {
-                m_uvSplit.writeToFile(m_currentFilePath);
-                m_window.setTitle("Saved to: " + std::string(m_currentFilePath));
             }
         });
 

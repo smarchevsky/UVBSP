@@ -24,7 +24,7 @@ class FileSystemNavigator {
 protected: // const, structs, typedefs
     static constexpr int s_inputTextBoxSize = 256;
 
-    typedef std::function<void(const fs::path&)> FileInteractionFunction;
+    typedef std::function<bool(const fs::path&)> FileInteractionFunction;
     struct SupportedFileInfo {
         SupportedFileInfo& operator=(const SupportedFileInfo& rhs)
         {
@@ -43,32 +43,35 @@ protected: // const, structs, typedefs
     };
 
 protected: // data
-    const std::string m_thisPtrHashStr;
-    const std::string m_ImGuiWidgetName;
-    const std::string m_ImGuiExtSensitiveCheckboxName;
-    const std::string m_ImGuiFileListBoxName;
-    const std::string m_ImGuiTextBoxName;
+    const std::string m_strThisPtrHash;
+    const std::string m_strImGuiWidgetName;
+    const std::string m_strImGuiExtSensitiveCheckboxName;
+    const std::string m_strImGuiFileListBoxName;
+    const std::string m_strImGuiTextBoxName;
+    const std::string m_strImGuiOverwriteMsg;
 
     // supported file extensions
     std::unordered_map<fs::path, SupportedFileInfo> m_extensionFileInfoMap;
 
-    fs::path m_currentEntry;
+    fs::path m_pathCurrentEntry;
     std::vector<EntryNameColor> m_entryList;
-    std::string m_selectedFilename;
-    std::string m_currentPathText;
+    std::string m_strSselectedFilename;
+    std::string m_strCurrentPath;
 
-    int m_selectedItemIdx = 0;
-    bool m_isOpenInImgui = true;
-    bool m_mustFocusListBox = false;
+    int m_iSelectedItemIndex = 0;
+    int m_iSelectedItemIndexPrev = 0;
 
-    bool m_extensionSensitive = false;
-    bool m_extensionSensitivePrev = false;
+    bool m_bIsOpenInImgui = true;
+    bool m_bMustFocusListBox = false;
+
+    bool m_bFileOverwritePopupOpen = false;
+    bool m_bForceOverwrite = false;
 
     const FileAction m_fileAction;
     const uint16_t m_width = 400, m_height = 500;
 
 public:
-    void shouldClose() { m_isOpenInImgui = false; }
+    void shouldClose() { m_bIsOpenInImgui = false; }
     FileSystemNavigator(FileAction action, const std::string& name, const fs::path& path);
 
     void addSupportedExtension(const fs::path& ext, FileInteractionFunction func,
@@ -77,16 +80,29 @@ public:
     bool showInImGUI();
 
 protected:
-    FileVisualColor getColorByExt(const fs::path& ext)
-    {
-        auto foundExt = m_extensionFileInfoMap.find(ext);
-        if (foundExt != m_extensionFileInfoMap.end())
-            return foundExt->second.color;
-        return s_defaultFileVisualColor;
-    }
-    bool runOpenFileFunction(const fs::path& filePath);
     void retrievePathList(const fs::path& newPath);
+
     const EntryNameColor* getEntryByIndex(int index) const { return (index >= 0 && index < m_entryList.size()) ? &m_entryList[index] : nullptr; }
+    //    SupportedFileInfo* getSupportedExtensionInfoBySelectedIndex(int index)
+    //    {
+    //        if (auto* entry = getEntryByIndex(index)) {
+    //            const auto& path = entry->entry.path();
+    //            const auto& ext = path.extension();
+
+    //            auto it = m_extensionFileInfoMap.find(ext);
+    //            if (it != m_extensionFileInfoMap.end())
+    //                return &it->second;
+    //        }
+    //        return nullptr;
+    //    }
+    SupportedFileInfo* getSupportedExtensionInfo(const fs::path& ext)
+    {
+        auto it = m_extensionFileInfoMap.find(ext);
+        if (it != m_extensionFileInfoMap.end())
+            return &it->second;
+        return nullptr;
+    }
+
     const auto& getEntryList() const { return m_entryList; }
 };
 

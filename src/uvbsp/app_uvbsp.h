@@ -26,7 +26,8 @@ class Application_UVBSP : public Application {
     ushort m_colorIndex = 0;
 
     std::unique_ptr<ImguiUtils::FileSystemNavigator> m_fsNavigator;
-    std::filesystem::path m_currentFilePath;
+    std::filesystem::path m_currentDir;
+    std::optional<std::filesystem::path> m_currentFileName;
 
 public:
     Application_UVBSP();
