@@ -33,6 +33,13 @@ void Window::processEvents()
 {
     sf::Event event;
     ImGui::SFML::SetCurrentWindow(*this);
+    if (auto* imContext = ImGui::GetCurrentContext()) {
+        float fadeRatio = imContext->DimBgRatio;
+        if (fadeRatio > 0 && fadeRatio < 1)
+            MAX_DIRTY(10);
+        else if (imContext->LastActiveIdTimer == 0.f)
+            MAX_DIRTY(2);
+    }
 
     while (pollEvent(event)) {
         ImGui::SFML::ProcessEvent(event);
@@ -81,6 +88,7 @@ void Window::processEvents()
         case sf::Event::KeyPressed: {
             if (event.key.control && event.key.code == sf::Keyboard::Key::Q)
                 exit();
+
             else if (!io.WantCaptureKeyboard) {
                 KeyWithModifier currentKey(event.key.code,
                     makeModifier(
@@ -124,7 +132,9 @@ void Window::processEvents()
             if (!io.WantCaptureMouse) {
                 if (m_mouseScrollEvent)
                     m_mouseScrollEvent(event.mouseWheelScroll.delta, m_mousePos);
+            } else {
             }
+
         } break;
 
         case sf::Event::MouseButtonPressed: {
@@ -132,9 +142,7 @@ void Window::processEvents()
                 auto mouseEventData = getMouseEventData(event.mouseButton.button);
                 if (mouseEventData)
                     mouseEventData->mouseDown(m_mousePos, true);
-            } else
-                MAX_DIRTY(10);
-
+            }
         } break;
 
         case sf::Event::MouseButtonReleased: {
@@ -142,9 +150,7 @@ void Window::processEvents()
                 auto mouseEventData = getMouseEventData(event.mouseButton.button);
                 if (mouseEventData)
                     mouseEventData->mouseDown(m_mousePos, false);
-            } else
-                MAX_DIRTY(10);
-
+            }
         } break;
 
         case sf::Event::MouseMoved: {
