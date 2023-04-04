@@ -5,6 +5,7 @@
 #include <functional>
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace ImguiUtils {
@@ -36,7 +37,7 @@ protected: // const, structs, typedefs
         const FileVisualColor color = s_defaultFileVisualColor;
     };
 
-    struct EntryNameColor {
+    struct EntryListInfo {
         const fs::directory_entry entry;
         const std::string visibleName;
         FileVisualColor visibleNameColor = s_defaultFileVisualColor;
@@ -54,18 +55,29 @@ protected: // data
     std::unordered_map<fs::path, SupportedFileInfo> m_extensionFileInfoMap;
 
     fs::path m_pathCurrentEntry;
-    std::vector<EntryNameColor> m_entryList;
-    std::string m_strSselectedFilename;
+
+    std::vector<fs::directory_entry> m_allEntryList;
+    std::vector<EntryListInfo> m_visibleEntryListInfo;
+    std::unordered_set<std::string> m_filenamesInThisFolder;
+
+    std::string m_strSelectedFilename;
     std::string m_strCurrentPath;
 
     int m_iSelectedItemIndex = 0;
-    int m_iSelectedItemIndexPrev = 0;
+
+    int m_iFocusedItemIndex = 0;
+    int m_iFocusedItemIndexPrev = 0;
 
     bool m_bIsOpenInImgui = true;
     bool m_bMustFocusListBox = false;
 
+    bool m_bVisibleEntryListDirty = true;
     bool m_bFileOverwritePopupOpen = false;
-    bool m_bForceOverwrite = false;
+
+    bool m_bFilterSupportedExtensions = false;
+    bool m_bFilterSupportedExtensionsPrev = false;
+
+    bool m_bTextBoxFileWithThisNameAlreadyExists = false;
 
     const FileAction m_fileAction;
     const uint16_t m_width = 400, m_height = 500;
@@ -77,24 +89,30 @@ public:
     void addSupportedExtension(const fs::path& ext, FileInteractionFunction func,
         FileVisualColor color = s_defaultFileVisualColor);
 
+    bool isParent(int selectedElementIndex) {
+        return selectedElementIndex == 0;
+    }
     bool showInImGUI();
 
 protected:
     void retrievePathList(const fs::path& newPath);
 
-    const EntryNameColor* getEntryByIndex(int index) const { return (index >= 0 && index < m_entryList.size()) ? &m_entryList[index] : nullptr; }
-    //    SupportedFileInfo* getSupportedExtensionInfoBySelectedIndex(int index)
-    //    {
-    //        if (auto* entry = getEntryByIndex(index)) {
-    //            const auto& path = entry->entry.path();
-    //            const auto& ext = path.extension();
+    void updateVisibleEntryListInternal();
 
-    //            auto it = m_extensionFileInfoMap.find(ext);
-    //            if (it != m_extensionFileInfoMap.end())
-    //                return &it->second;
-    //        }
-    //        return nullptr;
-    //    }
+    inline void updateVisibleEntryList()
+    {
+        if (m_bVisibleEntryListDirty)
+            updateVisibleEntryListInternal();
+        m_bVisibleEntryListDirty = false;
+    }
+
+    const EntryListInfo* getVisibleEntryByIndex(int index) const
+    {
+        return (index >= 0 && index < m_visibleEntryListInfo.size())
+            ? &m_visibleEntryListInfo[index]
+            : nullptr;
+    }
+
     SupportedFileInfo* getSupportedExtensionInfo(const fs::path& ext)
     {
         auto it = m_extensionFileInfoMap.find(ext);
@@ -102,8 +120,6 @@ protected:
             return &it->second;
         return nullptr;
     }
-
-    const auto& getEntryList() const { return m_entryList; }
 };
 
 ///////////// FILE WRITER
