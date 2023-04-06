@@ -5,7 +5,6 @@
 #include <functional>
 
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace ImguiUtils {
@@ -13,12 +12,7 @@ namespace ImguiUtils {
 namespace fs = std::filesystem;
 
 typedef uint32_t FileVisualColor; // uint8: A G R B
-static constexpr FileVisualColor s_defaultFileVisualColor = -1;
 
-enum FileAction : uint8_t {
-    FileRead,
-    FileWrite
-};
 ///////////// FILE SYSTEM NAVIGATOR
 
 class FileSystemNavigator {
@@ -34,13 +28,33 @@ protected: // const, structs, typedefs
             return *this;
         };
         const FileInteractionFunction function;
-        const FileVisualColor color = s_defaultFileVisualColor;
+        const FileVisualColor color = -1;
     };
 
+    typedef std::unordered_map<fs::path, SupportedFileInfo> ExtensionInfoMap;
     struct EntryListInfo {
+        EntryListInfo(const fs::directory_entry& entry,
+            const std::string& name,
+            FileVisualColor color, bool forceParentFolder = false)
+            : entry(entry)
+            , fileName(name)
+            , ImGuiFileName(forceParentFolder ? ".." : "  " + name)
+            , visibleNameColor(color)
+        {
+        }
         const fs::directory_entry entry;
-        const std::string visibleName;
-        FileVisualColor visibleNameColor = s_defaultFileVisualColor;
+        const std::string fileName;
+        const std::string ImGuiFileName;
+        FileVisualColor visibleNameColor;
+    };
+    struct PopupOverwriteWindowInfo {
+        PopupOverwriteWindowInfo(const fs::directory_entry& dir, const FileInteractionFunction& info)
+            : dir(dir)
+            , function(info)
+        {
+        }
+        const fs::directory_entry dir;
+        const FileInteractionFunction function;
     };
 
 protected: // data
@@ -50,18 +64,19 @@ protected: // data
     const std::string m_strImGuiFileListBoxName;
     const std::string m_strImGuiTextBoxName;
     const std::string m_strImGuiOverwriteMsg;
+    std::string m_strImGuiWarningMessage;
+    std::string m_strImGuiCurrentPath;
 
     // supported file extensions
-    std::unordered_map<fs::path, SupportedFileInfo> m_extensionFileInfoMap;
+    ExtensionInfoMap m_extensionFileInfoMap;
 
-    fs::path m_pathCurrentEntry;
+    fs::path m_currentDir;
 
     std::vector<fs::directory_entry> m_allEntryList;
     std::vector<EntryListInfo> m_visibleEntryListInfo;
-    std::unordered_set<std::string> m_filenamesInThisFolder;
 
     std::string m_strSelectedFilename;
-    std::string m_strCurrentPath;
+    std::unique_ptr<PopupOverwriteWindowInfo> m_popupOverwriteWindowInfo;
 
     int m_iSelectedItemIndex = 0;
 
@@ -72,26 +87,26 @@ protected: // data
     bool m_bMustFocusListBox = false;
 
     bool m_bVisibleEntryListDirty = true;
-    bool m_bFileOverwritePopupOpen = false;
 
     bool m_bFilterSupportedExtensions = false;
     bool m_bFilterSupportedExtensionsPrev = false;
 
-    bool m_bTextBoxFileWithThisNameAlreadyExists = false;
+    bool m_bFileWithThisNameAlreadyExists = false;
 
-    const FileAction m_fileAction;
     const uint16_t m_width = 400, m_height = 500;
 
 public:
+    fs::path getCurrentDir() { return m_currentDir; }
+    void showWarningMessage(const std::string& msg) { m_strImGuiWarningMessage = msg; }
+    void closeWarningMessage() { m_strImGuiWarningMessage.clear(); }
+    bool isWarningMessageExists() { return !m_strImGuiWarningMessage.empty(); }
+
     void shouldClose() { m_bIsOpenInImgui = false; }
-    FileSystemNavigator(FileAction action, const std::string& name, const fs::path& path);
+    FileSystemNavigator(const std::string& name, const fs::path& path);
 
-    void addSupportedExtension(const fs::path& ext, FileInteractionFunction func,
-        FileVisualColor color = s_defaultFileVisualColor);
+    void addSupportedExtension(const fs::path& ext, FileInteractionFunction func);
 
-    bool isParent(int selectedElementIndex) {
-        return selectedElementIndex == 0;
-    }
+    bool isParent(int selectedElementIndex) const { return selectedElementIndex == 0; }
     bool showInImGUI();
 
 protected:
@@ -106,6 +121,17 @@ protected:
         m_bVisibleEntryListDirty = false;
     }
 
+    void executeFileWrite(const fs::directory_entry& fileEntry, FileInteractionFunction function)
+    {
+        if (fileEntry.is_regular_file()) { // double check
+            if (function)
+                function(fileEntry);
+            shouldClose();
+        }
+    }
+
+    int checkFileWithThisNameAlreadyExists_GetIndex();
+
     const EntryListInfo* getVisibleEntryByIndex(int index) const
     {
         return (index >= 0 && index < m_visibleEntryListInfo.size())
@@ -113,7 +139,18 @@ protected:
             : nullptr;
     }
 
-    SupportedFileInfo* getSupportedExtensionInfo(const fs::path& ext)
+    ExtensionInfoMap::const_iterator getSupportedFileInfoByIndex(int index) const
+    {
+        int i = 0;
+        for (auto it = m_extensionFileInfoMap.begin(); it != m_extensionFileInfoMap.end(); ++it) {
+            if (i == index)
+                return it;
+            i++;
+        }
+        return m_extensionFileInfoMap.end();
+    }
+
+    const SupportedFileInfo* getSupportedExtensionInfo(const fs::path& ext) const
     {
         auto it = m_extensionFileInfoMap.find(ext);
         if (it != m_extensionFileInfoMap.end())
@@ -123,6 +160,8 @@ protected:
 };
 
 ///////////// FILE WRITER
+class FileReader : public FileSystemNavigator {
+};
 
 //
 

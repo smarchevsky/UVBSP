@@ -59,8 +59,9 @@ void Application_UVBSP::drawContext()
 {
     auto imguiFunctions = [&]() {
         if (m_fsNavigator) {
-            if (!m_fsNavigator->showInImGUI())
+            if (!m_fsNavigator->showInImGUI()) {
                 m_fsNavigator.reset();
+            }
         }
     };
 
@@ -82,24 +83,22 @@ void Application_UVBSP::bindActions()
     // open
     m_window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control,
         [this]() {
-            m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator(ImguiUtils::FileRead, "Open file", m_currentDir));
+            m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator("Open file", m_currentDir));
             m_fsNavigator->addSupportedExtension(
                 ".uvbsp", [this](const std::filesystem::path& path) {
                     // read file function
                     if (m_uvSplit.readFromFile(path)) {
+                        LOG("File opened: RelativePath: " << m_currentDir.c_str());
                         m_uvSplit.updateUniforms(m_BSPShader);
 
-                        m_currentFileName = path.filename();
-                        m_currentDir = path.parent_path();
-
-                        LOG("File opened: RelativePath: " << m_currentDir.c_str() << ", FileName: " << m_currentFileName->c_str());
+                        m_currentDir = m_fsNavigator->getCurrentDir();
+                        m_currentFileName = m_currentDir.filename();
                         return true;
                     } else {
                         LOG("Failed to open file: " << path);
                         return false;
                     }
-                },
-                IM_COL32(255, 255, 128, 255));
+                });
         });
 
     // save
@@ -111,19 +110,19 @@ void Application_UVBSP::bindActions()
                 if (entry.exists()) {
                     m_uvSplit.writeToFile(fullPath);
                     m_window.setTitle("Saved to: " + std::string(fullPath));
+
                 } else {
                     LOG("Invalid path: " << fullPath);
                 }
             } else {
-                m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator(ImguiUtils::FileWrite, "Save file", m_currentDir));
+                m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator("Save file", m_currentDir));
                 m_fsNavigator->addSupportedExtension(
                     ".uvbsp", [this](const std::filesystem::path& path) {
-                        std::filesystem::path fullFilePath(path / "test2.uvbsp");
-                        m_uvSplit.writeToFile(fullFilePath);
-                        LOG("File saved: " << fullFilePath);
+                        m_uvSplit.writeToFile(path);
+                        m_currentDir = m_fsNavigator->getCurrentDir();
+                        LOG("File saved: " << path);
                         return true;
-                    },
-                    IM_COL32(255, 255, 128, 255));
+                    });
             }
         });
 
