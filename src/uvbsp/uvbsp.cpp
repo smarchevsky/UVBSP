@@ -1,4 +1,4 @@
-#include "third_party/base64.hpp"
+#include "base64.hpp"
 #include <SFML/Graphics/Shader.hpp>
 #include <fstream>
 #include <sstream>

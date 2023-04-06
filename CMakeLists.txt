@@ -15,13 +15,14 @@ add_definitions(-DDOCUMENTS_DIR="${PROJECT_SOURCE_DIR}")
 
 include_directories(src/common/)
 include_directories(src/)
-include_directories(src/third_party/)
+include_directories(third_party/)
 
-FILE(GLOB_RECURSE ALL_CPP "src/*.cpp")
+FILE(GLOB_RECURSE ALL_HEADERS ${CMAKE_SOURCE_DIR}/*.h)
+FILE(GLOB_RECURSE ALL_CPP "src/*.cpp" "third_party/*.cpp")
 
 FILE(GLOB_RECURSE ALL_SHADERS "resources/shaders/*.frag") # I want to see all shader files in CMake project
 
-add_executable(${PROJECT_NAME} ${ALL_CPP} ${ALL_SHADERS} "src/main.cpp")
+add_executable(${PROJECT_NAME} ${ALL_CPP} ${ALL_SHADERS} ${ALL_HEADERS} "src/main.cpp")
 
 if(MSVC)
   target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
