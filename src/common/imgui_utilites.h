@@ -13,7 +13,7 @@ namespace fs = std::filesystem;
 
 typedef uint32_t FileVisualColor; // uint8: A G R B
 
-///////////// FILE SYSTEM NAVIGATOR
+///////////// FILE SYSTEM NAVIGATOR ///////////////
 
 class FileSystemNavigator {
 protected: // const, structs, typedefs
@@ -47,13 +47,14 @@ protected: // const, structs, typedefs
         const std::string ImGuiFileName;
         FileVisualColor visibleNameColor;
     };
-    struct PopupOverwriteWindowInfo {
-        PopupOverwriteWindowInfo(const fs::directory_entry& dir, const FileInteractionFunction& info)
+
+    struct FileInteractionInfo {
+        FileInteractionInfo(const fs::path& dir, const FileInteractionFunction& info)
             : dir(dir)
             , function(info)
         {
         }
-        const fs::directory_entry dir;
+        const fs::path dir;
         const FileInteractionFunction function;
     };
 
@@ -76,7 +77,6 @@ protected: // data
     std::vector<EntryListInfo> m_visibleEntryListInfo;
 
     std::string m_strSelectedFilename;
-    std::unique_ptr<PopupOverwriteWindowInfo> m_popupOverwriteWindowInfo;
 
     int m_iSelectedItemIndex = 0;
 
@@ -121,14 +121,9 @@ protected:
         m_bVisibleEntryListDirty = false;
     }
 
-    void executeFileWrite(const fs::directory_entry& fileEntry, FileInteractionFunction function)
-    {
-        if (fileEntry.is_regular_file()) { // double check
-            if (function)
-                function(fileEntry);
-            shouldClose();
-        }
-    }
+    virtual void renderOverwriteWindow() = 0;
+    virtual void tryDoFileAction(const FileInteractionInfo& fileInteractionInfo) = 0;
+    virtual bool isWriter() = 0;
 
     int checkFileWithThisNameAlreadyExists_GetIndex();
 
@@ -157,10 +152,52 @@ protected:
             return &it->second;
         return nullptr;
     }
+    bool doFileAction(const FileInteractionInfo& fileInteractionInfo);
 };
 
-///////////// FILE WRITER
+///////////// FILE READER /////////////////
+
 class FileReader : public FileSystemNavigator {
+protected:
+    virtual void renderOverwriteWindow() override { }
+    virtual void tryDoFileAction(const FileInteractionInfo& fileInteractionInfo) override;
+    virtual bool isWriter() override { return false; };
+
+    void readFile(const FileInteractionInfo& fileInteractionInfo)
+    {
+        if (!doFileAction(fileInteractionInfo))
+            showWarningMessage("Unable to read file");
+    }
+
+public:
+    FileReader(const std::string& name, const fs::path& path)
+        : FileSystemNavigator(name, path)
+    {
+    }
+};
+
+///////////// FILE WRITER /////////////////
+
+class FileWriter : public FileSystemNavigator {
+
+    std::unique_ptr<FileInteractionInfo> m_popupOverwriteWindowInfo;
+    bool m_popupOverwriteWasInPrevFrame; // to focus to "No", when window appears
+
+    virtual void renderOverwriteWindow() override;
+    virtual void tryDoFileAction(const FileInteractionInfo& fileInteractionInfo) override;
+    virtual bool isWriter() override { return true; };
+
+    void writeFile(const FileInteractionInfo& fileInteractionInfo)
+    {
+        if (!doFileAction(fileInteractionInfo))
+            showWarningMessage("Unable to write file");
+    }
+
+public:
+    FileWriter(const std::string& name, const fs::path& path)
+        : FileSystemNavigator(name, path)
+    {
+    }
 };
 
 //

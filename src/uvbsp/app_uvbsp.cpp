@@ -83,7 +83,7 @@ void Application_UVBSP::bindActions()
     // open
     m_window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control,
         [this]() {
-            m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator("Open file", m_currentDir));
+            m_fsNavigator.reset(new ImguiUtils::FileReader("Open file", m_currentDir));
             m_fsNavigator->addSupportedExtension(
                 ".uvbsp", [this](const std::filesystem::path& path) {
                     // read file function
@@ -115,7 +115,7 @@ void Application_UVBSP::bindActions()
                     LOG("Invalid path: " << fullPath);
                 }
             } else {
-                m_fsNavigator.reset(new ImguiUtils::FileSystemNavigator("Save file", m_currentDir));
+                m_fsNavigator.reset(new ImguiUtils::FileWriter("Save file", m_currentDir));
                 m_fsNavigator->addSupportedExtension(
                     ".uvbsp", [this](const std::filesystem::path& path) {
                         m_uvSplit.writeToFile(path);

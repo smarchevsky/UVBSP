@@ -11,7 +11,6 @@ namespace ImguiUtils {
 
 static constexpr FileVisualColor s_folderColor = -1;
 static constexpr FileVisualColor s_unsupportedFileColor = IM_COL32(200, 200, 200, 255);
-
 static FileVisualColor getSupportedFileColorByIndex(int index)
 {
     static constexpr int l = 127, h = 255; // low, high intensity color component
@@ -28,6 +27,7 @@ static FileVisualColor getSupportedFileColorByIndex(int index)
     static constexpr int arraySize = sizeof(s_supportedFileColor) / sizeof(FileVisualColor);
     return s_supportedFileColor[index % arraySize];
 }
+static const ImVec2 getButtonSize() { return { ImGui::GetFontSize() * 7.0f, 0.0f }; };
 
 template <class T> // make hex string, because I can (copy from StackOverflow)
 static std::string toStringCustom(T t, std::ios_base& (*f)(std::ios_base&))
@@ -145,7 +145,6 @@ int FileSystemNavigator::checkFileWithThisNameAlreadyExists_GetIndex()
 
 bool FileSystemNavigator::showInImGUI()
 {
-    static const ImVec2 button_size(ImGui::GetFontSize() * 7.0f, 0.0f);
 
     updateVisibleEntryList();
     //////////////// SAVE DIALOG BOX ////////////////////
@@ -191,7 +190,9 @@ bool FileSystemNavigator::showInImGUI()
                             const fs::directory_entry& fileEntry = selectedEntryPtr->entry;
                             const fs::path& ext = fileEntry.path().extension();
                             if (auto* info = getSupportedExtensionInfo(ext)) {
-                                m_popupOverwriteWindowInfo.reset(new PopupOverwriteWindowInfo(fileEntry, info->function)); // overwrite dialog
+                                m_bFileWithThisNameAlreadyExists = true;
+                                tryDoFileAction({ fileEntry, info->function });
+
                             } else
                                 showWarningMessage("Trying to overwrite unsupported file");
                         }
@@ -216,7 +217,7 @@ bool FileSystemNavigator::showInImGUI()
 
         //////////////// TEXT BOX /////////////////
         ImGui::SetNextItemWidth(m_width);
-        const auto& textColor = m_bFileWithThisNameAlreadyExists
+        const auto& textColor = (m_bFileWithThisNameAlreadyExists == isWriter())
             ? IM_COL32(255, 50, 50, 255)
             : IM_COL32(255, 255, 255, 255);
 
@@ -232,57 +233,29 @@ bool FileSystemNavigator::showInImGUI()
 
                 if (const auto* info = getSupportedExtensionInfo(fileNameAsPath.extension())) { // extension supported?
                     checkFileWithThisNameAlreadyExists_GetIndex();
-                    LOG("m_bFileWithThisNameAlreadyExists: " << m_bFileWithThisNameAlreadyExists);
 
-                    fs::directory_entry fileEntry(m_currentDir / fileNameAsPath);
-
-                    if (fileEntry.is_regular_file()) {
-                        if (m_bFileWithThisNameAlreadyExists) { // if this filename already exists
-                            m_popupOverwriteWindowInfo.reset(new PopupOverwriteWindowInfo(fileEntry, info->function)); // overwrite dialog
-                            LOG("Overwrite dialog");
-                        } else { // just write
-                            executeFileWrite(fileEntry, info->function);
-                            LOG("File successfully written");
-                        }
-                    } else {
-                        m_strImGuiWarningMessage = "You are trying to overwrite not a regular file";
-                    }
+                    fs::path fileEntry(m_currentDir / fileNameAsPath);
+                    tryDoFileAction({ fileEntry, info->function });
 
                 } else {
                     auto it = getSupportedFileInfoByIndex(0); // append first supported extension to filename
                     if (it != m_extensionFileInfoMap.end()) {
                         LOG("Extension appended");
-                        fileNameAsPath += it->first;
-                        m_strSelectedFilename = fileNameAsPath;
+                        m_strSelectedFilename += it->first;
                         checkFileWithThisNameAlreadyExists_GetIndex();
                     }
                 }
             }
         }
 
-        if (m_popupOverwriteWindowInfo) {
-            ImGui::OpenPopup(m_strImGuiOverwriteMsg.c_str());
-            if (ImGui::BeginPopupModal(m_strImGuiOverwriteMsg.c_str(),
-                    nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_Popup)) {
+        renderOverwriteWindow();
 
-                bool clickedYes = ImGui::Button("Yes", button_size);
-                bool clickedNo = ImGui::Button("No", button_size);
-                if (clickedYes || clickedNo) {
-                    if (clickedYes) {
-                        executeFileWrite(m_popupOverwriteWindowInfo->dir, m_popupOverwriteWindowInfo->function);
-                    }
-                    ImGui::CloseCurrentPopup();
-                    m_popupOverwriteWindowInfo.reset();
-                }
-
-                ImGui::EndPopup();
-            }
-        }
         if (isWarningMessageExists()) {
             ImGui::SetNextWindowSize(ImVec2(ImGui::GetFontSize() * m_strImGuiWarningMessage.size() * 0.46f, 0));
             ImGui::OpenPopup(m_strImGuiWarningMessage.c_str());
             if (ImGui::BeginPopupModal(m_strImGuiWarningMessage.c_str(), nullptr, ImGuiWindowFlags_Popup)) {
-                if (ImGui::Button("Ok", button_size)) {
+                ImGui::SetKeyboardFocusHere(0);
+                if (ImGui::Button("Ok", getButtonSize())) {
                     closeWarningMessage();
                 }
 
@@ -294,6 +267,72 @@ bool FileSystemNavigator::showInImGUI()
     }
 
     return m_bIsOpenInImgui;
+}
+
+bool FileSystemNavigator::doFileAction(const FileInteractionInfo& fileInteractionInfo)
+{
+    bool success = false;
+
+    if (fileInteractionInfo.function)
+        success = fileInteractionInfo.function(fileInteractionInfo.dir);
+
+    if (success)
+        shouldClose();
+
+    return success;
+}
+///////////// FILE READER /////////////////
+
+void FileReader::tryDoFileAction(const FileInteractionInfo& fileInteractionInfo)
+{
+    if (m_bFileWithThisNameAlreadyExists) { // if this filename already exists
+        if (fs::directory_entry(fileInteractionInfo.dir).is_regular_file())
+            readFile(fileInteractionInfo);
+    } else {
+        showWarningMessage("No such file: " + std::string(fileInteractionInfo.dir));
+    }
+    LOG("File must be read");
+}
+
+///////////// FILE WRITER /////////////////
+
+void FileWriter::renderOverwriteWindow()
+{
+    if (m_popupOverwriteWindowInfo) {
+        ImGui::OpenPopup(m_strImGuiOverwriteMsg.c_str());
+        if (ImGui::BeginPopupModal(m_strImGuiOverwriteMsg.c_str(),
+                nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_Popup)) {
+
+            if (!m_popupOverwriteWasInPrevFrame)
+                ImGui::SetKeyboardFocusHere(1); // focus to "No"
+
+            bool clickedYes = ImGui::Button("Yes", getButtonSize());
+            bool clickedNo = ImGui::Button("No", getButtonSize());
+            if (clickedYes || clickedNo) {
+                if (clickedYes) {
+                    writeFile(*m_popupOverwriteWindowInfo);
+                }
+                ImGui::CloseCurrentPopup();
+                m_popupOverwriteWindowInfo.reset();
+            }
+
+            ImGui::EndPopup();
+        }
+    }
+    m_popupOverwriteWasInPrevFrame = !!m_popupOverwriteWindowInfo;
+}
+
+void FileWriter::tryDoFileAction(const FileInteractionInfo& fileInteractionInfo)
+{
+    if (m_bFileWithThisNameAlreadyExists) { // if this filename already exists
+        if (fs::directory_entry(fileInteractionInfo.dir).is_regular_file())
+            m_popupOverwriteWindowInfo.reset(new FileInteractionInfo(fileInteractionInfo)); // overwrite dialog
+        else
+            showWarningMessage("You are trying to overwrite not a regular file");
+    } else {
+        writeFile(fileInteractionInfo);
+        m_popupOverwriteWindowInfo.reset();
+    }
 }
 
 } // ImguiUtils
