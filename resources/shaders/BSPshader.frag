@@ -3,6 +3,7 @@
 #extension GL_EXT_gpu_shader4 : enable
 
 uniform sampler2D texture;
+uniform float transparency;
 const float pi = 3.1415926535;
 const float pi_inv = 1. / pi;
 
@@ -48,6 +49,5 @@ void main() {
   float index = traverseTree(uv);
   vec3 hint = rainbow(0.5 * float(index));
   vec3 textureColor = texture2D(texture, uv).rgb;
-  gl_FragColor = vec4(mix(textureColor, hint, vec3(0.4)), 1.0);
-  //gl_FragColor = vec4(vec3(index * 6), 1.0);
+  gl_FragColor = vec4(mix(textureColor, hint, transparency), 1.0);
 }

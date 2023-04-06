@@ -29,6 +29,7 @@ Application_UVBSP::Application_UVBSP()
     // Create BSP shader from file
     m_BSPShader.loadFromFile(shaderPath / "BSPshader.frag", sf::Shader::Type::Fragment);
     m_BSPShader.setUniform("texture", m_texture);
+    m_BSPShader.setUniform("transparency", m_backgroundTransparency);
     m_uvSplit.updateUniforms(m_BSPShader);
 
     bindActions();
@@ -128,6 +129,21 @@ void Application_UVBSP::bindActions()
                     "Open file", m_currentDir, "uvbsp", writeWithUVBSPFileFunction));
             }
         });
+
+    const static auto changeBackgroundTransparency =
+        [this](float offset) {
+            m_backgroundTransparency
+                = std::clamp(m_backgroundTransparency + offset, 0.f, 1.f);
+            m_BSPShader.setUniform("transparency", m_backgroundTransparency);
+        };
+
+    // increase transparence
+    m_window.addKeyDownEvent(sf::Keyboard::Period, ModifierKey::None,
+        [this]() { changeBackgroundTransparency(0.1f); });
+
+    // increase transparence
+    m_window.addKeyDownEvent(sf::Keyboard::Comma, ModifierKey::None,
+        [this]() { changeBackgroundTransparency(-0.1f); });
 
     // undo
     m_window.addKeyDownEvent(sf::Keyboard::Z, ModifierKey::Control,

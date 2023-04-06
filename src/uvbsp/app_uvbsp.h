@@ -28,6 +28,7 @@ class Application_UVBSP : public Application {
     std::unique_ptr<ImguiUtils::FileSystemNavigator> m_fsNavigator;
     std::filesystem::path m_currentDir;
     std::optional<std::filesystem::path> m_currentFileName;
+    float m_backgroundTransparency = 0.5f;
 
 public:
     Application_UVBSP();
