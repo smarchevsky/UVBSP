@@ -3,6 +3,7 @@
 #include "imgui/imgui_stdlib.h"
 
 #include <iostream>
+#include <sstream>
 namespace ImguiUtils {
 
 #ifndef LOG
@@ -37,24 +38,55 @@ static std::string toStringCustom(T t, std::ios_base& (*f)(std::ios_base&))
     return oss.str();
 }
 
-FileSystemNavigator::FileSystemNavigator(const std::string& name, const fs::path& path)
+auto splitStringByComma(std::string singleLineExtensions)
+{
+    std::string tmp;
+
+    for (const char symbol : singleLineExtensions)
+        if ((symbol > 'a' && symbol < 'z') || (symbol > 'A' && symbol < 'Z')
+            || (symbol > '0' && symbol < '9') || symbol == ',') {
+            tmp += symbol;
+        }
+
+    singleLineExtensions = std::move(tmp);
+
+    std::stringstream singleLineExtensionsStream(singleLineExtensions);
+
+    std::set<std::string> resultSet; // avoid copies
+    while (singleLineExtensionsStream.good()) {
+        std::string substr;
+        std::getline(singleLineExtensionsStream, substr, ',');
+        if (substr.size() > 0)
+            resultSet.insert('.' + substr);
+    }
+
+    for (const auto& e : resultSet) {
+        std::cout << e << "  ";
+    }
+
+    std::cout << std::endl;
+    return resultSet;
+}
+
+FileSystemNavigator::FileSystemNavigator(
+    const std::string& name,
+    const fs::path& path,
+    const std::string& extensionsSingleLine,
+    const FileInteractionFunction& function)
+
     : m_strThisPtrHash(toStringCustom((size_t)this, std::hex))
     , m_strImGuiWidgetName(name + "###" + m_strThisPtrHash)
     , m_strImGuiExtSensitiveCheckboxName("Extension sensitive###" + m_strThisPtrHash)
     , m_strImGuiFileListBoxName("###FileList" + m_strThisPtrHash)
     , m_strImGuiTextBoxName("###InputTextBlock" + m_strThisPtrHash)
     , m_strImGuiOverwriteMsg(std::string("Overwrite"))
-    , m_currentDir(DOCUMENTS_DIR)
+    , m_currentDir(path)
+    , m_supportedExtensions(splitStringByComma(extensionsSingleLine))
+    , m_fileActionFunction(function)
 {
+    assert(!!function && "function must exist");
+    assert(m_supportedExtensions.size() && "No extensions");
     retrievePathList(m_currentDir);
-}
-
-void FileSystemNavigator::addSupportedExtension(const fs::path& newExt,
-    FileInteractionFunction func)
-{
-    int colorIndex = m_extensionFileInfoMap.size();
-    m_extensionFileInfoMap[newExt] = { func, getSupportedFileColorByIndex(colorIndex) };
-    m_bVisibleEntryListDirty = true;
 }
 
 void FileSystemNavigator::retrievePathList(const fs::path& newPath)
@@ -114,11 +146,13 @@ void FileSystemNavigator::updateVisibleEntryListInternal()
 
         const fs::path& path = e.path();
 
-        auto* extensionSupportInfo = getSupportedExtensionInfo(path.extension());
-        if (extensionSupportInfo)
-            fileColor = extensionSupportInfo->color;
+        int supportedExtensionIndex = getSupportingExtensionIndex(path.extension());
+        bool isSupportingExtension = supportedExtensionIndex != -1;
 
-        if (extensionSupportInfo || !m_bFilterSupportedExtensions) {
+        if (isSupportingExtension)
+            fileColor = getSupportedFileColorByIndex(supportedExtensionIndex);
+
+        if (isSupportingExtension || !m_bFilterSupportedExtensions) {
             m_visibleEntryListInfo.push_back(EntryListInfo(e, std::string(path.filename()), fileColor));
         }
     }
@@ -145,7 +179,6 @@ int FileSystemNavigator::checkFileWithThisNameAlreadyExists_GetIndex()
 
 bool FileSystemNavigator::showInImGUI()
 {
-
     updateVisibleEntryList();
     //////////////// SAVE DIALOG BOX ////////////////////
     ImGui::SetNextWindowSize(ImVec2(m_width, m_height));
@@ -189,9 +222,10 @@ bool FileSystemNavigator::showInImGUI()
                         } else if (selectedEntryPtr->entry.is_regular_file()) {
                             const fs::directory_entry& fileEntry = selectedEntryPtr->entry;
                             const fs::path& ext = fileEntry.path().extension();
-                            if (auto* info = getSupportedExtensionInfo(ext)) {
+
+                            if (isExtensionSupported(ext)) {
                                 m_bFileWithThisNameAlreadyExists = true;
-                                tryDoFileAction({ fileEntry, info->function });
+                                tryDoFileAction(fileEntry);
 
                             } else
                                 showWarningMessage("Trying to overwrite unsupported file");
@@ -231,17 +265,17 @@ bool FileSystemNavigator::showInImGUI()
             if (!m_strSelectedFilename.empty()) {
                 fs::path fileNameAsPath(m_strSelectedFilename);
 
-                if (const auto* info = getSupportedExtensionInfo(fileNameAsPath.extension())) { // extension supported?
+                if (isExtensionSupported(fileNameAsPath.extension())) { // extension supported?
                     checkFileWithThisNameAlreadyExists_GetIndex();
 
                     fs::path fileEntry(m_currentDir / fileNameAsPath);
-                    tryDoFileAction({ fileEntry, info->function });
+                    tryDoFileAction(fileEntry);
 
                 } else {
-                    auto it = getSupportedFileInfoByIndex(0); // append first supported extension to filename
-                    if (it != m_extensionFileInfoMap.end()) {
+                    auto it = getSupportedExtensionByIndex(0); // append first supported extension to filename
+                    if (it != m_supportedExtensions.end()) {
                         LOG("Extension appended");
-                        m_strSelectedFilename += it->first;
+                        m_strSelectedFilename += *it;
                         checkFileWithThisNameAlreadyExists_GetIndex();
                     }
                 }
@@ -269,12 +303,12 @@ bool FileSystemNavigator::showInImGUI()
     return m_bIsOpenInImgui;
 }
 
-bool FileSystemNavigator::doFileAction(const FileInteractionInfo& fileInteractionInfo)
+bool FileSystemNavigator::doFileAction(const fs::path& fileDir)
 {
     bool success = false;
 
-    if (fileInteractionInfo.function)
-        success = fileInteractionInfo.function(fileInteractionInfo.dir);
+    if (m_fileActionFunction)
+        success = m_fileActionFunction(fileDir);
 
     if (success)
         shouldClose();
@@ -283,13 +317,13 @@ bool FileSystemNavigator::doFileAction(const FileInteractionInfo& fileInteractio
 }
 ///////////// FILE READER /////////////////
 
-void FileReader::tryDoFileAction(const FileInteractionInfo& fileInteractionInfo)
+void FileReader::tryDoFileAction(const fs::path& fileDir)
 {
     if (m_bFileWithThisNameAlreadyExists) { // if this filename already exists
-        if (fs::directory_entry(fileInteractionInfo.dir).is_regular_file())
-            readFile(fileInteractionInfo);
+        if (fs::directory_entry(fileDir).is_regular_file())
+            readFile(fileDir);
     } else {
-        showWarningMessage("No such file: " + std::string(fileInteractionInfo.dir));
+        showWarningMessage("No such file: " + std::string(fileDir));
     }
     LOG("File must be read");
 }
@@ -322,15 +356,15 @@ void FileWriter::renderOverwriteWindow()
     m_popupOverwriteWasInPrevFrame = !!m_popupOverwriteWindowInfo;
 }
 
-void FileWriter::tryDoFileAction(const FileInteractionInfo& fileInteractionInfo)
+void FileWriter::tryDoFileAction(const fs::path& fileDir)
 {
     if (m_bFileWithThisNameAlreadyExists) { // if this filename already exists
-        if (fs::directory_entry(fileInteractionInfo.dir).is_regular_file())
-            m_popupOverwriteWindowInfo.reset(new FileInteractionInfo(fileInteractionInfo)); // overwrite dialog
+        if (fs::directory_entry(fileDir).is_regular_file())
+            m_popupOverwriteWindowInfo.reset(new fs::path(fileDir)); // overwrite dialog
         else
             showWarningMessage("You are trying to overwrite not a regular file");
     } else {
-        writeFile(fileInteractionInfo);
+        writeFile(fileDir);
         m_popupOverwriteWindowInfo.reset();
     }
 }
