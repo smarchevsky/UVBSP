@@ -128,7 +128,7 @@ Press Ctrl + O to open "test.uvbsp" from project folder.
 # Drawing
 
 You can try draw your art and export to ShaderToy, my example:
-[https://www.shadertoy.com/view/sltBz8](https://https://www.shadertoy.com/view/sltBz8)
+[https://www.shadertoy.com/view/sltBz8](https://www.shadertoy.com/view/sltBz8)
 
 My friend's drawing:
 ![my friends's drawing](readme_images/img_friends_drawing1.png)
@@ -139,21 +139,15 @@ Warning: number of splits is limited with GPU constant register size.
 uniform vec4 nodes[512];
 ```
 
-ToDo:
+# ToDo:
 
-- Save/Load - WIP, you cannot edit after load, no choose path option, only "test.uvbsp" in CMake project folder.
-- Figure out, why window is so laggy on drag.
+- Save/Load - WIP, you cannot edit after load.
 - Windows support.
 - Add Palette of color indices (with ImGui).
 - Export as antialiased image.
-- Refactor: get rid of lambdas, write "Application" class, load uniforms as plain float array.
+- Load uniforms as plain int array.
 - Read/write Json.
 
-Done:
-
-- Shader generator (GLSL/HLSL/Unreal) with static binary tree - done!
-- Ctrl-Z - done!
-
-Dependencies:
+# Dependencies:
 
 - SFML
