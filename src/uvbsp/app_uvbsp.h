@@ -35,7 +35,6 @@ public:
 
     void bindActions();
 
-    bool loadTexture(const std::filesystem::path& path);
     virtual void drawContext() override;
 };
 

@@ -42,19 +42,6 @@ Application_UVBSP::Application_UVBSP()
     style.DisplaySafeAreaPadding = ImVec2(300, 0);
 }
 
-bool Application_UVBSP::loadTexture(const fs::path& path)
-{
-    bool validTexture = m_texture.loadFromFile(path);
-    // if (!validTexture) {
-    //     if (m_window)
-    //         m_window->setTitle(std::string("Unable to find file: ") + path.c_str());
-    // }
-
-    m_texture.setSmooth(1);
-    m_texture.generateMipmap();
-    return validTexture;
-}
-
 void Application_UVBSP::drawContext()
 {
     auto imguiFunctions = [&]() {
@@ -80,9 +67,9 @@ void Application_UVBSP::bindActions()
 
     m_window.addKeyDownEvent(sf::Keyboard::Escape, ModifierKey::None, [this]() { if (m_fsNavigator) m_fsNavigator->shouldClose(); });
 
-    const static auto readWithImGuiFilesystemNavigatorFileFunction =
-        [this](const std::filesystem::path& path) {
-            if (m_uvSplit.readFromFile(path)) {
+    const static auto readUVBSPFileFunction =
+        [this](const std::filesystem::path& fullPath) {
+            if (m_uvSplit.readFromFile(fullPath)) {
                 LOG("File opened: RelativePath: " << m_currentDir.c_str());
                 m_uvSplit.updateUniforms(m_BSPShader);
 
@@ -90,40 +77,55 @@ void Application_UVBSP::bindActions()
                 m_currentFileName = m_currentDir.filename();
                 return true;
             } else {
-                LOG("Failed to open file: " << path);
+                LOG("Failed to open file: " << fullPath);
                 return false;
             }
         };
 
-    const static auto writeWithImGuiFilesystemNavigatorFileFunction =
-        [this](const std::filesystem::path& path) {
-            m_uvSplit.writeToFile(path);
-            m_currentDir = m_fsNavigator->getCurrentDir();
-            LOG("File saved: " << path);
-            return true;
+    const static auto writeWithUVBSPFileFunction =
+        [this](const std::filesystem::path& fullPath) {
+            fs::directory_entry entry(fullPath);
+            if (entry.exists()) {
+                m_uvSplit.writeToFile(fullPath);
+                m_window.setTitle("Saved to: " + std::string(fullPath));
+                return true;
+            }
+            LOG("Invalid path: " << fullPath);
+            return false;
         };
 
-    m_window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control, [this]() {
+    const static auto readBackgroundImageFileFunction =
+        [this](const std::filesystem::path& fullPath) {
+            bool validTexture = m_texture.loadFromFile(fullPath);
+            if (!validTexture) {
+                m_texture.setSmooth(1);
+                m_texture.generateMipmap();
+                LOG("Image opened: RelativePath: " << m_currentDir.c_str());
+            }
+            return validTexture;
+        };
+
+    // import image
+    m_window.addKeyDownEvent(sf::Keyboard::I, ModifierKey::Control, [this]() {
         m_fsNavigator.reset(new ImguiUtils::FileReader(
-            "Open file", m_currentDir, "uvbsp", readWithImGuiFilesystemNavigatorFileFunction));
+            "Open background image", m_currentDir,
+            "bmp,png,tga,jpg,gif,psd,hdr,pic", readBackgroundImageFileFunction));
     });
 
-    // save
+    // open file
+    m_window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control, [this]() {
+        m_fsNavigator.reset(new ImguiUtils::FileReader(
+            "Open file", m_currentDir, "uvbsp", readUVBSPFileFunction));
+    });
+
+    // save file
     m_window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control,
         [this]() {
             if (false && m_currentFileName) {
-                auto fullPath = m_currentDir / *m_currentFileName;
-                fs::directory_entry entry(fullPath);
-                if (entry.exists()) {
-                    m_uvSplit.writeToFile(fullPath);
-                    m_window.setTitle("Saved to: " + std::string(fullPath));
-                } else {
-                    LOG("Invalid path: " << fullPath);
-                }
-
+                writeWithUVBSPFileFunction(m_currentDir / *m_currentFileName);
             } else {
                 m_fsNavigator.reset(new ImguiUtils::FileWriter(
-                    "Open file", m_currentDir, "uvbsp", writeWithImGuiFilesystemNavigatorFileFunction));
+                    "Open file", m_currentDir, "uvbsp", writeWithUVBSPFileFunction));
             }
         });
 
