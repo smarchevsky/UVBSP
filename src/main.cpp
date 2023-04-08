@@ -4,8 +4,11 @@
 
 int main(int argc, char** argv)
 {
-    Application_UVBSP uvbspApp;
-    uvbspApp.mainLoop();
+    Application app;
+    app.init();
+    app.mainLoop();
+    // Application_UVBSP uvbspApp;
+    // uvbspApp.mainLoop();
 
     return 0;
 }

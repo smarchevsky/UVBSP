@@ -212,7 +212,8 @@ void Window::drawImGuiContext(ImGuiContextFunctions imguiFunctions)
 {
     ImGui::SFML::Update(*this, m_deltaClock.restart());
     ImGui::PushFont(m_robotoFont);
-    imguiFunctions();
+    if (imguiFunctions)
+        imguiFunctions();
     ImGui::PopFont();
     ImGui::SFML::Render(*this);
 }

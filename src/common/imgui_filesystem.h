@@ -65,7 +65,7 @@ protected: // data
     int m_iFocusedItemIndexPrev = 0;
 
     bool m_bIsOpenInImgui = true;
-    bool m_bMustFocusListBox = false;
+    bool m_bMustFocusListBox = true;
 
     bool m_bVisibleEntryListDirty = true;
 
@@ -157,10 +157,9 @@ protected:
     virtual void tryDoFileAction(const fs::path& fileInteractionInfo) override;
     virtual bool isWriter() override { return false; };
 
-    void readFile(const fs::path& fileInteractionInfo)
+    bool readFile(const fs::path& fileInteractionInfo)
     {
-        if (!doFileAction(fileInteractionInfo))
-            showWarningMessage("Unable to read file");
+        return doFileAction(fileInteractionInfo);
     }
 
 public:
@@ -182,10 +181,9 @@ class FileWriter : public FileSystemNavigator {
     virtual void tryDoFileAction(const fs::path& fileInteractionInfo) override;
     virtual bool isWriter() override { return true; };
 
-    void writeFile(const fs::path& fileInteractionInfo)
+    bool writeFile(const fs::path& fileInteractionInfo)
     {
-        if (!doFileAction(fileInteractionInfo))
-            showWarningMessage("Unable to write file");
+        return doFileAction(fileInteractionInfo);
     }
 
 public:

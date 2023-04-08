@@ -1,5 +1,6 @@
 #include "app_uvbsp.h"
 #include "imgui/imgui.h"
+#include "window.h"
 #include <SFML/Graphics.hpp>
 #include <SFML/Window/Clipboard.hpp>
 #include <filesystem>
@@ -15,12 +16,11 @@ static const fs::path shaderPath(SHADER_DIR);
 Application_UVBSP::Application_UVBSP()
     : m_splitActions(m_uvSplit)
 {
-    m_currentDir = DOCUMENTS_DIR;
 
-    m_window.setTitle("UVBSP");
+    m_window->setTitle("UVBSP");
     // Create default grey texture
     sf::Image img;
-    img.create(1024, 1024, sf::Color(33, 33, 33));
+    img.create(1024, 1024, sf::Color(100, 100, 100));
     m_texture.loadFromImage(img);
 
     // set texture to background sprite
@@ -45,19 +45,11 @@ Application_UVBSP::Application_UVBSP()
 
 void Application_UVBSP::drawContext()
 {
-    auto imguiFunctions = [&]() {
-        if (m_fsNavigator) {
-            if (!m_fsNavigator->showInImGUI()) {
-                m_fsNavigator.reset();
-            }
-        }
-    };
 
-    m_window.clear(sf::Color(50, 50, 50));
+    m_window->clear(sf::Color(50, 50, 50));
     sf::Shader::bind(&m_BSPShader);
-    m_window.draw(m_backgroundSprite);
+    m_window->draw(m_backgroundSprite);
     sf::Shader::bind(nullptr);
-    m_window.drawImGuiContext(imguiFunctions);
 }
 
 void Application_UVBSP::bindActions()
@@ -66,16 +58,12 @@ void Application_UVBSP::bindActions()
     // or std::bind(&Application_UVBSP::some_function, this);
     ///////////////// KEY EVENTS ///////////////////
 
-    m_window.addKeyDownEvent(sf::Keyboard::Escape, ModifierKey::None, [this]() { if (m_fsNavigator) m_fsNavigator->shouldClose(); });
-
     const static auto readUVBSPFileFunction =
         [this](const std::filesystem::path& fullPath) {
             if (m_uvSplit.readFromFile(fullPath)) {
-                LOG("File opened: RelativePath: " << m_currentDir.c_str());
+
                 m_uvSplit.updateUniforms(m_BSPShader);
 
-                m_currentDir = m_fsNavigator->getCurrentDir();
-                m_currentFileName = m_currentDir.filename();
                 return true;
             } else {
                 LOG("Failed to open file: " << fullPath);
@@ -88,7 +76,7 @@ void Application_UVBSP::bindActions()
             fs::directory_entry entry(fullPath);
             if (entry.exists()) {
                 m_uvSplit.writeToFile(fullPath);
-                m_window.setTitle("Saved to: " + std::string(fullPath));
+                m_window->setTitle("Saved to: " + std::string(fullPath));
                 return true;
             }
             LOG("Invalid path: " << fullPath);
@@ -101,34 +89,19 @@ void Application_UVBSP::bindActions()
             if (!validTexture) {
                 m_texture.setSmooth(1);
                 m_texture.generateMipmap();
-                LOG("Image opened: RelativePath: " << m_currentDir.c_str());
             }
             return validTexture;
         };
 
     // import image
-    m_window.addKeyDownEvent(sf::Keyboard::I, ModifierKey::Control, [this]() {
-        m_fsNavigator.reset(new ImguiUtils::FileReader(
-            "Open background image", m_currentDir,
-            "bmp,png,tga,jpg,gif,psd,hdr,pic", readBackgroundImageFileFunction));
-    });
+    //    m_window->addKeyDownEvent(sf::Keyboard::I, ModifierKey::Control, [this]() {
+    //        m_fsNavigator.reset(new ImguiUtils::FileReader(
+    //            "Open background image", m_currentDir,
+    //            "bmp,png,tga,jpg,gif,psd,hdr,pic", readBackgroundImageFileFunction));
+    //    });
 
-    // open file
-    m_window.addKeyDownEvent(sf::Keyboard::O, ModifierKey::Control, [this]() {
-        m_fsNavigator.reset(new ImguiUtils::FileReader(
-            "Open file", m_currentDir, "uvbsp", readUVBSPFileFunction));
-    });
-
-    // save file
-    m_window.addKeyDownEvent(sf::Keyboard::S, ModifierKey::Control,
-        [this]() {
-            if (false && m_currentFileName) {
-                writeWithUVBSPFileFunction(m_currentDir / *m_currentFileName);
-            } else {
-                m_fsNavigator.reset(new ImguiUtils::FileWriter(
-                    "Open file", m_currentDir, "uvbsp", writeWithUVBSPFileFunction));
-            }
-        });
+    std::function<void()> func;
+    constexpr int size = sizeof(func);
 
     const static auto changeBackgroundTransparency =
         [this](float offset) {
@@ -138,32 +111,32 @@ void Application_UVBSP::bindActions()
         };
 
     // increase transparence
-    m_window.addKeyDownEvent(sf::Keyboard::Period, ModifierKey::None,
+    m_window->addKeyDownEvent(sf::Keyboard::Period, ModifierKey::None,
         [this]() { changeBackgroundTransparency(0.1f); });
 
     // increase transparence
-    m_window.addKeyDownEvent(sf::Keyboard::Comma, ModifierKey::None,
+    m_window->addKeyDownEvent(sf::Keyboard::Comma, ModifierKey::None,
         [this]() { changeBackgroundTransparency(-0.1f); });
 
     // undo
-    m_window.addKeyDownEvent(sf::Keyboard::Z, ModifierKey::Control,
+    m_window->addKeyDownEvent(sf::Keyboard::Z, ModifierKey::Control,
         [this]() {
             if (m_splitActions.undo())
                 m_colorIndex -= 2;
             m_uvSplit.updateUniforms(m_BSPShader);
 
-            m_window.setTitle(m_uvSplit.getBasicInfo());
+            m_window->setTitle(m_uvSplit.getBasicInfo());
         });
 
     // suggest export shader text
-    m_window.addKeyDownEvent(sf::Keyboard::E, ModifierKey::Control | ModifierKey::Shift,
+    m_window->addKeyDownEvent(sf::Keyboard::E, ModifierKey::Control | ModifierKey::Shift,
         [this]() {
-            m_window.setAnyKeyReason("export file type");
-            m_window.setTitle("Export shader to: G-glsl, H-hlsl, U-unreal");
+            m_window->setAnyKeyReason("export file type");
+            m_window->setTitle("Export shader to: G-glsl, H-hlsl, U-unreal");
         });
 
     // export shader text
-    m_window.setAnyKeyDownOnceEvent("export file type",
+    m_window->setAnyKeyDownOnceEvent("export file type",
         [this](KeyWithModifier key) {
             std::string shaderText;
             UVBSP::ShaderType shaderExportType;
@@ -178,7 +151,7 @@ void Application_UVBSP::bindActions()
                 shaderExportType = UVBSP::ShaderType::UnrealCustomNode;
                 break;
             default: {
-                m_window.setTitle("Invalid export letter, press 'G', 'H' or 'U' next time.");
+                m_window->setTitle("Invalid export letter, press 'G', 'H' or 'U' next time.");
                 return;
             }
             }
@@ -186,19 +159,13 @@ void Application_UVBSP::bindActions()
             std::cout << shaderText << std::endl;
             sf::Clipboard::setString(shaderText);
 
-            m_window.setTitle("Export shader code copied to clipboard, you're welcome :)");
+            m_window->setTitle("Export shader code copied to clipboard, you're welcome :)");
         });
 
     ///////////////// MOUSE EVENTS ///////////////////
 
-    // drag canvas on MMB
-    m_window.setMouseDragEvent(sf::Mouse::Middle,
-        [this](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta, DragState dragState) {
-            m_window.addOffset(toFloat(-currentDelta) * m_window.getScale());
-        });
-
     // finish split on mouse up
-    m_window.setMouseDownEvent(sf::Mouse::Left,
+    m_window->setMouseDownEvent(sf::Mouse::Left,
         [this](ivec2 pos, bool mouseDown) {
             if (!mouseDown) {
                 const UVBSPSplit* lastNode = m_uvSplit.getLastNode();
@@ -206,28 +173,18 @@ void Application_UVBSP::bindActions()
                     UVBSPSplit split(lastNode->pos, lastNode->dir, lastNode->l, lastNode->r);
                     m_splitActions.add(split);
 
-                    m_window.setTitle(m_uvSplit.getBasicInfo());
+                    m_window->setTitle(m_uvSplit.getBasicInfo());
                 }
             }
         });
 
-    // zoom canvas on scroll
-    m_window.setMouseScrollEvent(
-        [this](float diff, ivec2 mousePos) {
-            float scaleFactor = pow(1.1f, -diff);
-            m_window.addScale(scaleFactor);
-            vec2 mouseWorld = m_window.mapPixelToCoords(mousePos);
-            vec2 offset = (mouseWorld - m_window.getOffset()) * log(scaleFactor);
-            m_window.addOffset(-offset);
-        });
-
     // create split
-    m_window.setMouseDragEvent(sf::Mouse::Left,
+    m_window->setMouseDragEvent(sf::Mouse::Left,
         [this](ivec2 startPos, ivec2 currentPos, ivec2 currentDelta, DragState dragState) {
             vec2 textureSize = toFloat(m_texture.getSize());
-            vec2 uvCurrentDelta = m_window.mapPixelToCoords(currentDelta) / textureSize;
-            vec2 uvStartPos = m_window.mapPixelToCoords(startPos) / textureSize;
-            vec2 uvCurrentPos = m_window.mapPixelToCoords(currentPos) / textureSize;
+            vec2 uvCurrentDelta = m_window->mapPixelToCoords(currentDelta) / textureSize;
+            vec2 uvStartPos = m_window->mapPixelToCoords(startPos) / textureSize;
+            vec2 uvCurrentPos = m_window->mapPixelToCoords(currentPos) / textureSize;
             vec2 uvCurrentDir = normalized(uvCurrentPos - uvStartPos);
             vec2 uvCurrentPerp = perp(uvCurrentDir);
 

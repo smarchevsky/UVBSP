@@ -5,6 +5,9 @@
 #include "uvbsp.h"
 
 #include <SFML/Graphics/Sprite.hpp>
+#include <SFML/Graphics/Texture.hpp>
+#include <optional>
+
 #include <memory>
 #include <string>
 
@@ -26,8 +29,7 @@ class Application_UVBSP : public Application {
     ushort m_colorIndex = 0;
 
     std::unique_ptr<ImguiUtils::FileSystemNavigator> m_fsNavigator;
-    std::filesystem::path m_currentDir;
-    std::optional<std::filesystem::path> m_currentFileName;
+
     float m_backgroundTransparency = 0.5f;
 
 public:
